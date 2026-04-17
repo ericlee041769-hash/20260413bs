@@ -3,8 +3,11 @@ VERSION = "1.0.0"
 
 _G.sys = require("sys")
 _G.config = require("config")
-_G.iot = require("iot")
 _G.application = require("application")
+_G.ggpio = require("ggpio")
+_G.gadc = require("gadc")
+_G.gsht30 = require("gsht30")
+_G.gmqtt = require("gmqtt")
 
 local device_props = {
 	sn = "AIR780EPM-SN-001",
@@ -17,135 +20,70 @@ local device_props = {
 	err = false,
 	time = os.date("%Y-%m-%d %H:%M:%S")
 }
+ggpio.init()
 
-local function parse_msg(payload)
-	if type(payload) ~= "string" or payload == "" then
-		return nil
-	end
-	local ok, data = pcall(json.decode, payload)
-	if not ok then
-		return nil
-	end
-	return data
-end
-
-local function to_message_id(msg)
-	if type(msg) ~= "table" then
-		return ""
-	end
-	if type(msg.messageId) == "string" and msg.messageId ~= "" then
-		return msg.messageId
-	end
-	if type(msg.id) == "string" and msg.id ~= "" then
-		return msg.id
-	end
-	return ""
-end
-
-local function build_get_reply_dp(keys)
-	local reply = {}
-	if type(keys) ~= "table" then
-		return reply
-	end
-	for i = 1, #keys do
-		local key = keys[i]
-		if type(key) == "string" and device_props[key] ~= nil then
-			reply[key] = device_props[key]
-		end
-	end
-	return reply
-end
-
-local function apply_set_dp(dp)
-	if type(dp) ~= "table" then
-		return {}
-	end
-	for k, v in pairs(dp) do
-		device_props[k] = v
-	end
-	return dp
-end
+gmqtt.start(device_props)
 
 sys.taskInit(function()
-	local ip_ready = sys.waitUntil("IP_READY", 30000)
-	if not ip_ready then
-		log.error("main", "网络连接超时")
-		return
-	end
-
-	log.info("main", "网络连接成功")
-
-	-- MQTT初始化与连接测试
-	local init_ok = iot.init(config.MQTT)
-	if init_ok then
-		iot.connect()
-	else
-		log.error("main", "iot.init failed")
-	end
-end)
-
--- 订阅IOT封装透传出的接收消息事件
-sys.subscribe(iot.event_recv_name(), function(topic, payload, metas)
-	log.info("main", "mqtt recv", topic, payload, json.encode(metas))
-
-	local msg = parse_msg(payload)
-	if not msg then
-		return
-	end
-
-	if topic == config.MQTT.getTopic then
-		local message_id = to_message_id(msg)
-		local req = msg.dp
-		local reply_dp = build_get_reply_dp(req)
-		local ok = iot.publish_get_reply(message_id, true, reply_dp, nil, nil, msg.deviceId)
-		log.info("main", "dp/get reply", ok, message_id, json.encode(reply_dp))
-	elseif topic == config.MQTT.setTopic then
-		local message_id = to_message_id(msg)
-		local changed = apply_set_dp(msg.dp)
-		local ok = iot.publish_set_reply(message_id, true, changed)
-		log.info("main", "dp/set reply", ok, message_id, json.encode(changed))
-	end
-end)
-
--- 订阅连接状态事件
-sys.subscribe(iot.event_conn_name(), function()
-	log.info("main", "mqtt connected event")
-end)
-
-sys.subscribe(iot.event_disc_name(), function(code)
-	log.info("main", "mqtt disconnected", code)
-end)
-
--- 按指定JSON格式发送测试数据，仅传入dp参数
-sys.taskInit(function()
-	math.randomseed(os.time())
-	math.random()
-	math.random()
+	log.info("main", "start gadc test loop")
 
 	while true do
-		if iot.ready() then
-			local temp = math.random(150, 350) / 10
-			local fanSpeed = math.random(5, 50) / 10
-			local door = math.random(0, 1) == 1
-			local humidity = math.random(300, 900) / 10
-			local err = math.random(1, 20) == 1
-			local now = os.date("%Y-%m-%d %H:%M:%S")
+		local battery_mv, battery_percent = gadc.read_battery()
+		local raw_value, adc_mv, sensor_mv = gadc.read_wcs1500_adc0()
+		local battery_mv_desc = battery_mv and (tostring(battery_mv) .. "mV") or "读取失败"
+		local battery_percent_desc = battery_percent and (tostring(battery_percent) .. "%") or "读取失败"
+		local raw_value_desc = raw_value and tostring(raw_value) or "读取失败"
+		local adc_mv_desc = adc_mv and (tostring(adc_mv) .. "mV") or "读取失败"
+		local sensor_mv_desc = sensor_mv and (tostring(sensor_mv) .. "mV") or "读取失败"
 
-			device_props.temp = temp
-			device_props.fanSpeed = fanSpeed
-			device_props.door = door
-			device_props.humidity = humidity
-			device_props.err = err
-			device_props.time = now
-
-			local ok = iot.publish_dp(temp, fanSpeed, door, humidity, err, now)
-			log.info("main", "publish_dp result", ok, temp, fanSpeed, door, humidity, err, now)
-		end
-		sys.wait(10000)
+		log.info("main", "gadc测试", "电池电压", battery_mv_desc, "电池电量", battery_percent_desc, "ADC原始值", raw_value_desc, "ADC电压", adc_mv_desc, "传感器电压", sensor_mv_desc)
+		sys.wait(1000)
 	end
 end)
 
+sys.taskInit(function()
+	log.info("main", "start gsht30 test loop")
 
+	if not gsht30.init() then
+		log.error("main", "gsht30初始化失败")
+		return
+	end
 
+	while true do
+		local all = gsht30.read_all()
+		local i2c0 = all[gsht30.I2C0] or {}
+		local i2c1 = all[gsht30.I2C1] or {}
+		local i2c0_hum = i2c0.humidity and (tostring(i2c0.humidity) .. "%") or "读取失败"
+		local i2c0_temp = i2c0.temperature and (tostring(i2c0.temperature) .. "C") or "读取失败"
+		local i2c1_hum = i2c1.humidity and (tostring(i2c1.humidity) .. "%") or "读取失败"
+		local i2c1_temp = i2c1.temperature and (tostring(i2c1.temperature) .. "C") or "读取失败"
+
+		log.info("main", "gsht30测试", "I2C0状态", tostring(i2c0.ok), "I2C0湿度", i2c0_hum, "I2C0温度", i2c0_temp, "I2C1状态", tostring(i2c1.ok), "I2C1湿度", i2c1_hum, "I2C1温度", i2c1_temp)
+		sys.wait(1000)
+	end
+end)
+
+-- gpio.setup(23,1)
+-- gpio.set(23,1)
+
+-- local function apply_gpio_test_level(level)
+-- 	ggpio.set_adc(level)
+-- 	ggpio.set_3v3(level)
+-- 	ggpio.set_5v(level)
+-- 	ggpio.set_gpio28(level)
+-- end
+
+-- sys.taskInit(function()
+-- 	local level = false
+
+-- 	log.info("main", "start gpio toggle test")
+-- 	ggpio.init()
+
+-- 	while true do
+-- 		apply_gpio_test_level(level)
+-- 		level = not level
+-- 		sys.wait(10000)
+-- 	end
+-- end)
 
 sys.run()
