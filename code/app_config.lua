@@ -1,37 +1,12 @@
 local app_config = {}
+local config = require("config")
 
 local CONFIG_KEY = "app:config"
 local current_config = nil
 
-local DEFAULT_CONFIG = {
-	sample_interval_ms = 10000,
-	report_interval_ms = 10000,
-	airlbs_project_id = "",
-	airlbs_project_key = "",
-	airlbs_timeout = 10000,
-	temp_low = -40,
-	temp_high = 85,
-	current_low = 0,
-	current_high = 50000,
-	pressure_diff_low = 1.0,
-	pressure_diff_high = 1.5,
-	door_open_warn_ms = 5000
-}
-
-local FIELD_TYPES = {
-	sample_interval_ms = "number",
-	report_interval_ms = "number",
-	airlbs_project_id = "string",
-	airlbs_project_key = "string",
-	airlbs_timeout = "number",
-	temp_low = "number",
-	temp_high = "number",
-	current_low = "number",
-	current_high = "number",
-	pressure_diff_low = "number",
-	pressure_diff_high = "number",
-	door_open_warn_ms = "number"
-}
+local DEFAULT_CONFIG = config.RUNTIME_DEFAULTS or {}
+local FIELD_TYPES = config.RUNTIME_FIELD_TYPES or {}
+local MUTABLE_FIELDS = config.RUNTIME_MUTABLE_FIELDS or {}
 
 local function clone_table(source)
 	local target = {}
@@ -96,7 +71,7 @@ function app_config.update(changes)
 	end
 
 	for key, value in pairs(changes) do
-		if FIELD_TYPES[key] ~= nil and type(value) == FIELD_TYPES[key] then
+		if MUTABLE_FIELDS[key] == true and FIELD_TYPES[key] ~= nil and type(value) == FIELD_TYPES[key] then
 			next_config[key] = value
 			applied[key] = value
 		end
