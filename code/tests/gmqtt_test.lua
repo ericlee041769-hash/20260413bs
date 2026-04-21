@@ -87,7 +87,7 @@ local env = {
 			if payload == "get_payload" then
 				return {
 					messageId = "get-1",
-					dp = { "temp", "humidity", "temp2", "humidity2", "door", "err", "time", "tempdiff", "lpoint", "pressure1", "pressure2", "pressurediff", "config" }
+					dp = { "temp", "humidity", "temp2", "humidity2", "door", "err", "time", "current", "tempdiff", "lpoint", "pressure1", "pressure2", "pressurediff", "config" }
 				}
 			end
 			if payload == "set_payload" then
@@ -115,6 +115,29 @@ local env = {
 							airlbs_project_id = "blocked"
 						}
 					}
+				}
+			end
+			if payload == "set_payload_config_string" then
+				return {
+					messageId = "set-4",
+					dp = {
+						config = "{   \"alarm_sms_phone\": \"15025376653\",   \"battery_interval_ms\": 60000,   \"current_high\": 50000,   \"current_low\": 0,   \"door_open_warn_ms\": 5000,   \"pressure_diff_high\": 1.5,   \"pressure_diff_low\": 0,   \"temp_diff_high\": 5,   \"temp_high\": 85,   \"temp_low\": -40,   \"usb_interval_ms\": 10000 }"
+					}
+				}
+			end
+			if payload == "{   \"alarm_sms_phone\": \"15025376653\",   \"battery_interval_ms\": 60000,   \"current_high\": 50000,   \"current_low\": 0,   \"door_open_warn_ms\": 5000,   \"pressure_diff_high\": 1.5,   \"pressure_diff_low\": 0,   \"temp_diff_high\": 5,   \"temp_high\": 85,   \"temp_low\": -40,   \"usb_interval_ms\": 10000 }" then
+				return {
+					alarm_sms_phone = "15025376653",
+					battery_interval_ms = 60000,
+					current_high = 50000,
+					current_low = 0,
+					door_open_warn_ms = 5000,
+					pressure_diff_high = 1.5,
+					pressure_diff_low = 0,
+					temp_diff_high = 5,
+					temp_high = 85,
+					temp_low = -40,
+					usb_interval_ms = 10000
 				}
 			end
 			if payload == "set_payload_readonly" then
@@ -185,6 +208,8 @@ local fake_app_state = {
 			timestamp_ms = 1776744000000.0,
 			door_open = true,
 			err = "门持续打开超时; 压差异常=0.7",
+			current_mv = 24000,
+			current_sensor_mv = 48000,
 			location = { 31.1354542, 121.5423279 },
 			pressure = {
 				[1] = { ok = true, pressure = 100.0 },
@@ -216,6 +241,8 @@ assert(gmqtt.publish_snapshot({
 	timestamp_ms = 1776744000000.0,
 	door_open = true,
 	err = "门持续打开超时; 压差异常=0.7",
+	current_mv = 25000,
+	current_sensor_mv = 50000,
 	location = { 31.1354542, 121.5423279 },
 	pressure = {
 		[1] = { ok = true, pressure = 100.0 },
@@ -233,6 +260,7 @@ assert(published_dp[1].humidity2 == 60.3, "published dp should expose humidity2"
 assert(published_dp[1].door == false, "published dp should invert door state for gateway upload")
 assert(published_dp[1].err == "门持续打开超时; 压差异常=0.7", "published dp should expose err text")
 assert(published_dp[1].time == "2026-04-21 12:00:00", "published dp should expose gateway date string")
+assert(published_dp[1].current == 50000, "published dp should expose WCS1500 current value")
 assert(published_dp[1].tempdiff == 1.6, "published dp should expose tempdiff")
 assert(published_dp[1].lpoint == "31.1354542,121.5423279", "published dp should expose lpoint")
 assert(published_dp[1].pressure1 == 100.0, "published dp should expose pressure1")
@@ -260,6 +288,7 @@ assert(get_replies[1].dp.humidity2 == 60.3, "get reply should expose humidity2")
 assert(get_replies[1].dp.door == false, "get reply should invert door state for gateway upload")
 assert(get_replies[1].dp.err == "门持续打开超时; 压差异常=0.7", "get reply should expose err text")
 assert(get_replies[1].dp.time == "2026-04-21 12:00:00", "get reply should expose gateway date string")
+assert(get_replies[1].dp.current == 48000, "get reply should expose WCS1500 current value")
 assert(get_replies[1].dp.tempdiff == 1.6, "get reply should expose tempdiff")
 assert(get_replies[1].dp.lpoint == "31.1354542,121.5423279", "get reply should expose lpoint")
 assert(get_replies[1].dp.pressure1 == 100.0, "get reply should expose pressure1")
@@ -292,5 +321,12 @@ assert(set_replies[3].dp.config.alarm_sms_phone == "13900139000", "json set shou
 assert(set_replies[3].dp.config.battery_interval_ms == 120000, "json set should update battery interval")
 assert(set_replies[3].dp.config.temp_high == 70, "json set should update temp high")
 assert(set_replies[3].dp.config.airlbs_project_id == nil, "json set should ignore blocked fields")
+
+subscriptions["IOT_MQTT_RECV"]("set/topic", "set_payload_config_string", {})
+assert(set_replies[4].message_id == "set-4", "string config set reply message id")
+assert(type(set_replies[4].dp.config) == "table", "string config set should decode and return config object")
+assert(set_replies[4].dp.config.alarm_sms_phone == "15025376653", "string config set should decode alarm sms phone")
+assert(set_replies[4].dp.config.pressure_diff_low == 0, "string config set should decode pressure diff low")
+assert(set_replies[4].dp.config.usb_interval_ms == 10000, "string config set should decode usb interval")
 
 print("gmqtt_test.lua: PASS")

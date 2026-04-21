@@ -32,6 +32,22 @@ local function parse_msg(payload)
 	return data
 end
 
+local function decode_json_table(payload)
+	local data
+	local ok
+
+	if type(payload) ~= "string" or payload == "" then
+		return nil
+	end
+
+	ok, data = pcall(json.decode, payload)
+	if not ok or type(data) ~= "table" then
+		return nil
+	end
+
+	return data
+end
+
 local function to_message_id(msg)
 	if type(msg) ~= "table" then
 		return ""
@@ -192,6 +208,7 @@ local function build_gateway_dp(cfg, snapshot)
 	reply.humidity = humidity1
 	reply.err = to_gateway_err(snapshot)
 	reply.time = to_gateway_time(snapshot)
+	reply.current = snapshot and snapshot.current_sensor_mv or nil
 	reply.temp2 = temp2
 	reply.humidity2 = humidity2
 	reply.lpoint = format_location(snapshot and snapshot.location)
@@ -233,6 +250,7 @@ local function apply_set_dp(dp)
 	local applied
 	local reply = {}
 	local allowed_fields = gateway_config_fields()
+	local config_payload
 
 	if not app_config or type(app_config.update) ~= "function" then
 		return {}
@@ -242,13 +260,24 @@ local function apply_set_dp(dp)
 		return {}
 	end
 
-	if type(dp.config) ~= "table" then
+	config_payload = dp.config
+	if type(config_payload) == "string" then
+		log.info("gmqtt", "收到字符串配置，开始清洗", config_payload)
+		config_payload = decode_json_table(config_payload)
+		if type(config_payload) ~= "table" then
+			log.error("gmqtt", "字符串配置清洗失败", dp.config)
+			return {}
+		end
+		log.info("gmqtt", "字符串配置清洗完成", safe_json_encode(config_payload))
+	end
+
+	if type(config_payload) ~= "table" then
 		return {}
 	end
 
 	for key, allowed in pairs(allowed_fields) do
-		if allowed == true and dp.config[key] ~= nil then
-			changes[key] = dp.config[key]
+		if allowed == true and config_payload[key] ~= nil then
+			changes[key] = config_payload[key]
 		end
 	end
 
