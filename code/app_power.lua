@@ -1,6 +1,7 @@
 local app_power = {}
 
 local ggpio = require("ggpio")
+local BATTERY_PREWAKE_MS = 5000
 
 local function log_info(...)
 	if log and type(log.info) == "function" then
@@ -36,7 +37,7 @@ function app_power.current_profile(cfg)
 		return {
 			mode = "BATTERY",
 			interval_ms = cfg.battery_interval_ms,
-			prewake_ms = cfg.battery_prewake_ms
+			prewake_ms = BATTERY_PREWAKE_MS
 		}
 	end
 
@@ -52,7 +53,7 @@ function app_power.should_sleep_after_cycle(cfg)
 end
 
 function app_power.next_wakeup_delay_ms(cfg)
-	local delay_ms = cfg.battery_interval_ms - cfg.battery_prewake_ms
+	local delay_ms = cfg.battery_interval_ms - BATTERY_PREWAKE_MS
 
 	if delay_ms < 0 then
 		return 0

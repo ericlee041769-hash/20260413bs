@@ -131,7 +131,13 @@ local function start_collection_loop()
 		raw_snapshot = app_collect.collect_once()
 		snapshot, algo_runtime = app_algorithm.apply(raw_snapshot, algo_runtime)
 		alarm = app_alarm.evaluate(cfg, snapshot, alarm_runtime, now_ms())
-		snapshot.err = next(alarm.active_map) ~= nil
+		if type(alarm.err_text) == "string" and alarm.err_text ~= "" then
+			snapshot.err = alarm.err_text
+		elseif next(alarm.active_map) ~= nil then
+			snapshot.err = "告警"
+		else
+			snapshot.err = "正常"
+		end
 
 		log_info("application", "本轮采集快照", safe_json_encode(snapshot))
 		app_state.save_latest(snapshot)
