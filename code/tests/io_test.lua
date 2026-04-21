@@ -99,6 +99,7 @@ assert_equal(infos[1][1], "ggpio", "wakeup0 log tag")
 assert_equal(infos[1][2], "door opened", "wakeup0 log message")
 assert_equal(infos[1][3], gpio.WAKEUP0, "wakeup0 log pin")
 assert_equal(infos[1][4], 0, "wakeup0 log level")
+assert_true(io_ctrl.get_door_state(), "door state should become open after callback")
 
 clear_records()
 assert_true(io_ctrl.set(io_ctrl.GPIO_ADC_EN, false), "set low return")

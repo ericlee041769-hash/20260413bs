@@ -21,6 +21,7 @@ local managed_pin_set = {
 }
 
 local pin_levels = {}
+local door_open = false
 
 local function normalize_level(level)
 	if level == false or level == 0 then
@@ -34,6 +35,8 @@ local function is_valid_pin(pin)
 end
 
 local function wakeup0_callback(level, pin)
+	door_open = (level == 0)
+
 	if log and log.info then
 		log.info("ggpio", "door opened", pin, level)
 	end
@@ -91,6 +94,10 @@ end
 
 function io_ctrl.set_gpio28(level)
 	return io_ctrl.set(io_ctrl.GPIO_28, level)
+end
+
+function io_ctrl.get_door_state()
+	return door_open
 end
 
 return io_ctrl

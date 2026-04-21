@@ -1,5 +1,11 @@
 local app_collect = {}
 
+local gadc = rawget(_G, "gadc") or require("gadc")
+local ggpio = rawget(_G, "ggpio") or require("ggpio")
+local gsht30 = rawget(_G, "gsht30") or require("gsht30")
+local gbaro = rawget(_G, "gbaro") or require("gbaro")
+local glbs = rawget(_G, "glbs") or require("glbs")
+
 local function safe_call(fn, ...)
 	if type(fn) ~= "function" then
 		return false
