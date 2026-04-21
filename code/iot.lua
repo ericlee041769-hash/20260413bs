@@ -134,40 +134,46 @@ function iot.publish(topic, data, qos, retain)
 	return mqtt_client:publish(topic, data, qos or 0, retain or 0)
 end
 
--- 按平台指定格式上报DP数据：只需要传入dp参数表
+-- 按平台指定格式上报DP数据。
+-- 兼容两种调用方式：
+-- 1. 旧版演示调用：iot.publish_dp(temp, fanSpeed, door, humidity, err, time)
+-- 2. 新版应用调用：iot.publish_dp(dp_table)
 function iot.publish_dp(temp, fanSpeed, door, humidity, err, time)
+	local dp
+
 	if not mqtt_cfg or not mqtt_cfg.postTopic then
 		log.error("iot.publish_dp", "postTopic not configured")
 		return false
 	end
 
-	if type(temp) ~= "number" then
-		log.error("iot.publish_dp", "temp must be number")
-		return false
-	end
-	if type(fanSpeed) ~= "number" then
-		log.error("iot.publish_dp", "fanSpeed must be number")
-		return false
-	end
-	if type(door) ~= "boolean" then
-		log.error("iot.publish_dp", "door must be boolean")
-		return false
-	end
-	if type(humidity) ~= "number" then
-		log.error("iot.publish_dp", "humidity must be number")
-		return false
-	end
-	if type(err) ~= "boolean" then
-		log.error("iot.publish_dp", "err must be boolean")
-		return false
-	end
-	if type(time) ~= "string" or time == "" then
-		log.error("iot.publish_dp", "time must be non-empty string")
-		return false
-	end
+	if type(temp) == "table" and fanSpeed == nil then
+		dp = temp
+	else
+		if type(temp) ~= "number" then
+			log.error("iot.publish_dp", "temp must be number")
+			return false
+		end
+		if type(fanSpeed) ~= "number" then
+			log.error("iot.publish_dp", "fanSpeed must be number")
+			return false
+		end
+		if type(door) ~= "boolean" then
+			log.error("iot.publish_dp", "door must be boolean")
+			return false
+		end
+		if type(humidity) ~= "number" then
+			log.error("iot.publish_dp", "humidity must be number")
+			return false
+		end
+		if type(err) ~= "boolean" then
+			log.error("iot.publish_dp", "err must be boolean")
+			return false
+		end
+		if type(time) ~= "string" or time == "" then
+			log.error("iot.publish_dp", "time must be non-empty string")
+			return false
+		end
 
-	local payload = {
-		deviceId = mqtt_cfg.clientId,
 		dp = {
 			temp = temp,
 			fanSpeed = fanSpeed,
@@ -176,6 +182,11 @@ function iot.publish_dp(temp, fanSpeed, door, humidity, err, time)
 			err = err,
 			time = time
 		}
+	end
+
+	local payload = {
+		deviceId = mqtt_cfg.clientId,
+		dp = dp
 	}
 
 	local body = json.encode(payload)

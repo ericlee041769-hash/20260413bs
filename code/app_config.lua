@@ -18,6 +18,21 @@ local DEFAULT_CONFIG = {
 	door_open_warn_ms = 5000
 }
 
+local FIELD_TYPES = {
+	sample_interval_ms = "number",
+	report_interval_ms = "number",
+	airlbs_project_id = "string",
+	airlbs_project_key = "string",
+	airlbs_timeout = "number",
+	temp_low = "number",
+	temp_high = "number",
+	current_low = "number",
+	current_high = "number",
+	pressure_diff_low = "number",
+	pressure_diff_high = "number",
+	door_open_warn_ms = "number"
+}
+
 local function clone_table(source)
 	local target = {}
 
@@ -73,9 +88,23 @@ function app_config.get()
 end
 
 function app_config.update(changes)
-	current_config = merge_tables(app_config.get(), changes)
+	local next_config = app_config.get()
+	local applied = {}
+
+	if type(changes) ~= "table" then
+		return applied
+	end
+
+	for key, value in pairs(changes) do
+		if FIELD_TYPES[key] ~= nil and type(value) == FIELD_TYPES[key] then
+			next_config[key] = value
+			applied[key] = value
+		end
+	end
+
+	current_config = next_config
 	save_persisted(current_config)
-	return clone_table(current_config)
+	return clone_table(applied)
 end
 
 return app_config
