@@ -14,6 +14,8 @@ local wait_calls = {}
 local door_state = true
 local wakeup_calls = {}
 local pm_sleep_calls = 0
+local info_logs = {}
+local error_logs = {}
 
 local fake_pm = {}
 
@@ -41,12 +43,8 @@ local fake_fskv = {
 
 local function current_cfg()
 	return {
-		sample_interval_ms = 10000,
-		report_interval_ms = 10000,
-		usb_sample_interval_ms = 10000,
-		usb_report_interval_ms = 10000,
-		battery_sample_interval_ms = 60000,
-		battery_report_interval_ms = 60000,
+		usb_interval_ms = 10000,
+		battery_interval_ms = 60000,
 		battery_prewake_ms = 5000,
 		airlbs_project_id = "",
 		airlbs_project_key = "",
@@ -185,8 +183,7 @@ local fake_app_power = {
 	current_profile = function(cfg)
 		return {
 			mode = "USB",
-			sample_interval_ms = cfg.usb_sample_interval_ms,
-			report_interval_ms = cfg.usb_report_interval_ms,
+			interval_ms = cfg.usb_interval_ms,
 			prewake_ms = 0
 		}
 	end,
@@ -194,7 +191,7 @@ local fake_app_power = {
 		return false
 	end,
 	prepare_next_wakeup = function(cfg)
-		wakeup_calls[#wakeup_calls + 1] = cfg.battery_sample_interval_ms - cfg.battery_prewake_ms
+		wakeup_calls[#wakeup_calls + 1] = cfg.battery_interval_ms - cfg.battery_prewake_ms
 		return true
 	end,
 	enter_sleep = function()
@@ -273,8 +270,12 @@ local env = {
 		return mod
 	end,
 	log = {
-		error = function() end,
-		info = function() end
+		error = function(...)
+			error_logs[#error_logs + 1] = { ... }
+		end,
+		info = function(...)
+			info_logs[#info_logs + 1] = { ... }
+		end
 	}
 }
 
@@ -293,6 +294,9 @@ assert(required_modules.app_power, "application should require app_power")
 assert(fskv_init_calls == 1, "application should init fskv once")
 assert(gmqtt_services.app_config == fake_app_config, "gmqtt should receive app_config service")
 assert(gmqtt_services.app_state == fake_app_state, "gmqtt should receive app_state service")
+assert(info_logs[3][2] == "AirLBS init config", "application should log airlbs init config summary")
+assert(info_logs[3][3] == "", "application should log blank airlbs project id when config is blank")
+assert(info_logs[4][2] == "AirLBS未配置，定位将使用默认值", "application should log when airlbs is skipped")
 assert(#task_queue == 1, "application should create one collection task")
 assert(type(subscriptions["IP_READY"]) == "function", "application should subscribe IP_READY for sms readiness")
 assert(type(subscriptions["APP_DOOR_EDGE"]) == "function", "application should subscribe door edge events")

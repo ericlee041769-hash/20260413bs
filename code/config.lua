@@ -15,12 +15,8 @@ config.MQTT = {
 }
 
 config.RUNTIME_DEFAULTS = {
-	sample_interval_ms = 10000,
-	report_interval_ms = 10000,
-	usb_sample_interval_ms = 10000,
-	usb_report_interval_ms = 10000,
-	battery_sample_interval_ms = 60000,
-	battery_report_interval_ms = 60000,
+	usb_interval_ms = 10000,
+	battery_interval_ms = 60000,
 	battery_prewake_ms = 5000,
 	airlbs_project_id = "lvU4QJ",
 	airlbs_project_key = "hbHtgCRY8OUvCqEC3NEyLZb5CS0w7oHV",
@@ -37,12 +33,8 @@ config.RUNTIME_DEFAULTS = {
 }
 
 config.RUNTIME_FIELD_TYPES = {
-	sample_interval_ms = "number",
-	report_interval_ms = "number",
-	usb_sample_interval_ms = "number",
-	usb_report_interval_ms = "number",
-	battery_sample_interval_ms = "number",
-	battery_report_interval_ms = "number",
+	usb_interval_ms = "number",
+	battery_interval_ms = "number",
 	battery_prewake_ms = "number",
 	airlbs_project_id = "string",
 	airlbs_project_key = "string",
@@ -59,16 +51,27 @@ config.RUNTIME_FIELD_TYPES = {
 }
 
 config.RUNTIME_MUTABLE_FIELDS = {
-	sample_interval_ms = true,
-	report_interval_ms = true,
-	usb_sample_interval_ms = true,
-	usb_report_interval_ms = true,
-	battery_sample_interval_ms = true,
-	battery_report_interval_ms = true,
+	usb_interval_ms = true,
+	battery_interval_ms = true,
 	battery_prewake_ms = true,
 	airlbs_project_id = true,
 	airlbs_project_key = true,
 	airlbs_timeout = true,
+	temp_low = true,
+	temp_high = true,
+	temp_diff_high = true,
+	current_low = true,
+	current_high = true,
+	pressure_diff_low = true,
+	pressure_diff_high = true,
+	door_open_warn_ms = true,
+	alarm_sms_phone = true
+}
+
+config.GATEWAY_CONFIG_FIELDS = {
+	usb_interval_ms = true,
+	battery_interval_ms = true,
+	battery_prewake_ms = true,
 	temp_low = true,
 	temp_high = true,
 	temp_diff_high = true,

@@ -31,6 +31,17 @@ local function log_info(tag, ...)
 	end
 end
 
+local function safe_json_encode(value)
+	if json and type(json.encode) == "function" then
+		local ok, encoded = pcall(json.encode, value)
+		if ok then
+			return encoded
+		end
+	end
+
+	return tostring(value)
+end
+
 local function copy_location(source)
 	return { source[1], source[2] }
 end
@@ -211,6 +222,13 @@ local function request_location(request_time_ms)
 	end
 
 	timeout_ms = tonumber(request_cfg.timeout) or DEFAULT_TIMEOUT
+	log_info(
+		"glbs.get_location",
+		"开始定位请求",
+		request_cfg.project_id or "",
+		type(request_cfg.project_key) == "string" and #request_cfg.project_key or 0,
+		timeout_ms
+	)
 	ready, err = wait_for_default_network(timeout_ms)
 	if not ready then
 		log_error("glbs.get_location", "network not ready", err)
@@ -227,6 +245,7 @@ local function request_location(request_time_ms)
 	request_param = build_request_param()
 	last_request_ms = request_time_ms
 	ok, data = airlbs_lib.request(request_param)
+	log_info("glbs.get_location", "airlbs.request result", ok, safe_json_encode(data))
 	lat, lng = extract_airlbs_lat_lng(data)
 	if ok and is_valid_lat_lng(lat, lng) then
 		last_location = { lat, lng }
@@ -235,7 +254,7 @@ local function request_location(request_time_ms)
 		return true
 	end
 
-	log_error("glbs.get_location", "airlbs request failed", ok, data)
+	log_error("glbs.get_location", "airlbs request failed", ok, safe_json_encode(data))
 	return false
 end
 
@@ -257,6 +276,13 @@ function glbs.init(cfg)
 	}
 	is_inited = true
 	reset_runtime_state()
+	log_info(
+		"glbs.init",
+		"定位模块初始化",
+		request_cfg.project_id or "",
+		type(request_cfg.project_key) == "string" and #request_cfg.project_key or 0,
+		request_cfg.timeout
+	)
 	return true
 end
 
@@ -274,6 +300,7 @@ function glbs.get_location()
 
 	current_ms = now_ms()
 	if not request_due(current_ms) then
+		log_info("glbs.get_location", "定位请求间隔未到，直接使用缓存", has_last_location)
 		if has_last_location then
 			return copy_location(last_location)
 		end

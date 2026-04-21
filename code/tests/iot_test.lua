@@ -71,7 +71,9 @@ assert(iot.init({
 	clientId = "demo-device",
 	username = "demo-product",
 	password = "demo-password",
-	postTopic = "/demo/post"
+	postTopic = "/demo/post",
+	getReplyTopic = "/demo/get/reply",
+	setReplyTopic = "/demo/set/reply"
 }), "iot should init")
 
 assert(iot.connect(), "iot should connect")
@@ -86,5 +88,30 @@ assert(published_calls[1].topic == "/demo/post", "publish topic should match con
 assert(infos[#infos][1] == "iot.publish", "publish should log actual mqtt upload")
 assert(infos[#infos][2] == "/demo/post", "publish log should include topic")
 assert(infos[#infos][3] == "encoded", "publish log should include body")
+
+assert(iot.publish_get_reply("mid-1", true, {
+	config = {
+		usb_interval_ms = 10000
+	}
+}), "publish_get_reply should succeed")
+assert(published_calls[2].topic == "/demo/get/reply", "get reply topic should match config")
+assert(encoded_payload.messageId == "mid-1", "get reply should keep message id")
+assert(encoded_payload.success == true, "get reply should keep success")
+assert(encoded_payload.deviceId == "demo-device", "get reply should default device id")
+assert(encoded_payload.timestamp == 100000.0, "get reply timestamp should be millisecond precision")
+assert(math.type(encoded_payload.timestamp) == "float", "get reply timestamp should use overflow-safe float representation")
+assert(encoded_payload.dp.config.usb_interval_ms == 10000, "get reply should keep dp payload")
+
+assert(iot.publish_set_reply("mid-2", true, {
+	config = {
+		battery_interval_ms = 60000
+	}
+}), "publish_set_reply should succeed")
+assert(published_calls[3].topic == "/demo/set/reply", "set reply topic should match config")
+assert(encoded_payload.messageId == "mid-2", "set reply should keep message id")
+assert(encoded_payload.success == true, "set reply should keep success")
+assert(encoded_payload.timestamp == 100000.0, "set reply timestamp should be millisecond precision")
+assert(math.type(encoded_payload.timestamp) == "float", "set reply timestamp should use overflow-safe float representation")
+assert(encoded_payload.dp.config.battery_interval_ms == 60000, "set reply should keep dp payload")
 
 print("iot_test.lua: PASS")

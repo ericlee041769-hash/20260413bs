@@ -9,12 +9,12 @@ local EVT_CONN = "IOT_MQTT_CONNECTED"
 local EVT_DISC = "IOT_MQTT_DISCONNECTED"
 
 local function now_ms()
-	return os.time() * 1000
+	return (os.time() or 0) * 1000.0
 end
 
 local function gen_message_id()
 	local seed = math.random(10000, 99999)
-	return tostring(now_ms()) .. tostring(seed)
+	return tostring(os.time() or 0) .. "000" .. tostring(seed)
 end
 
 local function subscribe_topics(client)

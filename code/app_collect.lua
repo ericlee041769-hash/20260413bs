@@ -66,9 +66,11 @@ local function read_location()
 
 	local ok, location = safe_call(glbs and glbs.get_location)
 	if not ok or type(location) ~= "table" then
+		log_info("app_collect", "AirLBS读取失败，使用默认坐标", ok, type(location))
 		return { 0, 0 }
 	end
 
+	log_info("app_collect", "AirLBS定位结果", location[1] or 0, location[2] or 0)
 	return { location[1] or 0, location[2] or 0 }
 end
 
@@ -91,10 +93,12 @@ local function read_pressure()
 end
 
 function app_collect.collect_once()
+	local now_seconds = os.time() or 0
 	local battery_mv, battery_percent = read_battery()
 	local current_raw, current_mv, current_sensor_mv = read_current()
 	local snapshot = {
-		timestamp = os.date("%Y-%m-%d %H:%M:%S"),
+		timestamp = os.date("%Y-%m-%d %H:%M:%S", now_seconds),
+		timestamp_ms = now_seconds * 1000.0,
 		battery_mv = battery_mv,
 		battery_percent = battery_percent,
 		current_raw = current_raw,

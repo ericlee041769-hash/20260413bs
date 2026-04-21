@@ -87,6 +87,14 @@ local function init_modules(cfg)
 		return false
 	end
 
+	log_info(
+		"application",
+		"AirLBS init config",
+		type(cfg.airlbs_project_id) == "string" and cfg.airlbs_project_id or "",
+		type(cfg.airlbs_project_key) == "string" and #cfg.airlbs_project_key or 0,
+		cfg.airlbs_timeout
+	)
+
 	if type(cfg.airlbs_project_id) == "string" and cfg.airlbs_project_id ~= "" then
 		if not glbs.init({
 			project_id = cfg.airlbs_project_id,
@@ -96,7 +104,7 @@ local function init_modules(cfg)
 			log_error("application", "AirLBS初始化失败")
 			return false
 		end
-		log_info("application", "AirLBS初始化成功")
+		log_info("application", "AirLBS初始化成功", type(glbs.is_ready) == "function" and glbs.is_ready() or nil)
 	else
 		log_info("application", "AirLBS未配置，定位将使用默认值")
 	end
@@ -105,7 +113,6 @@ local function init_modules(cfg)
 end
 
 local function start_collection_loop()
-	local last_report_ms = 0
 	local algo_runtime = nil
 	local alarm_runtime = {
 		active_map = {},
@@ -113,7 +120,7 @@ local function start_collection_loop()
 	}
 	local door_watch_active = false
 
-	local function process_cycle(reason, force_report)
+	local function process_cycle(reason)
 		local cfg = app_config.get()
 		local profile = app_power.current_profile(cfg)
 		local raw_snapshot
@@ -134,10 +141,7 @@ local function start_collection_loop()
 			app_sms.send_alert(cfg.alarm_sms_phone, alarm.sms_text)
 		end
 
-		if force_report or last_report_ms == 0 or (now_ms() - last_report_ms) >= profile.report_interval_ms then
-			gmqtt.publish_snapshot(snapshot)
-			last_report_ms = now_ms()
-		end
+		gmqtt.publish_snapshot(snapshot)
 
 		return snapshot, alarm, profile
 	end
@@ -180,7 +184,7 @@ local function start_collection_loop()
 				end
 
 				log_info("application", "门持续打开超时，立即执行告警与上报")
-				process_cycle("door_timeout", true)
+				process_cycle("door_timeout")
 				door_watch_active = false
 			end)
 		end)
@@ -191,7 +195,7 @@ local function start_collection_loop()
 			local cfg = app_config.get()
 			local profile
 
-			_, _, profile = process_cycle("periodic", false)
+			_, _, profile = process_cycle("periodic")
 			if app_power.should_sleep_after_cycle(cfg) then
 				if app_power.prepare_next_wakeup(cfg) then
 					app_power.enter_sleep()
@@ -200,7 +204,7 @@ local function start_collection_loop()
 					sys.wait(profile.prewake_ms)
 				end
 			else
-				sys.wait(profile.sample_interval_ms)
+				sys.wait(profile.interval_ms)
 			end
 		end
 	end)

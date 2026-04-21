@@ -1,5 +1,7 @@
 local fake_store = {}
 local original_require = _G.require
+local info_logs = {}
+local warn_logs = {}
 
 local function assert_equal(actual, expected, message)
 	if actual ~= expected then
@@ -16,15 +18,11 @@ end
 local fake_config = {
 	MQTT = {},
 	RUNTIME_DEFAULTS = {
-		sample_interval_ms = 10000,
-		report_interval_ms = 10000,
-		usb_sample_interval_ms = 10000,
-		usb_report_interval_ms = 10000,
-		battery_sample_interval_ms = 60000,
-		battery_report_interval_ms = 60000,
+		usb_interval_ms = 10000,
+		battery_interval_ms = 60000,
 		battery_prewake_ms = 5000,
-		airlbs_project_id = "",
-		airlbs_project_key = "",
+		airlbs_project_id = "lvU4QJ",
+		airlbs_project_key = "hbHtgCRY8OUvCqEC3NEyLZb5CS0w7oHV",
 		airlbs_timeout = 10000,
 		temp_low = -40,
 		temp_high = 85,
@@ -37,12 +35,8 @@ local fake_config = {
 		alarm_sms_phone = "15025376653"
 	},
 	RUNTIME_FIELD_TYPES = {
-		sample_interval_ms = "number",
-		report_interval_ms = "number",
-		usb_sample_interval_ms = "number",
-		usb_report_interval_ms = "number",
-		battery_sample_interval_ms = "number",
-		battery_report_interval_ms = "number",
+		usb_interval_ms = "number",
+		battery_interval_ms = "number",
 		battery_prewake_ms = "number",
 		airlbs_project_id = "string",
 		airlbs_project_key = "string",
@@ -58,12 +52,8 @@ local fake_config = {
 		alarm_sms_phone = "string"
 	},
 	RUNTIME_MUTABLE_FIELDS = {
-		sample_interval_ms = true,
-		report_interval_ms = true,
-		usb_sample_interval_ms = true,
-		usb_report_interval_ms = true,
-		battery_sample_interval_ms = true,
-		battery_report_interval_ms = true,
+		usb_interval_ms = true,
+		battery_interval_ms = true,
 		battery_prewake_ms = true,
 		airlbs_project_id = true,
 		airlbs_project_key = true,
@@ -91,7 +81,13 @@ _G.fskv = {
 }
 
 _G.log = {
-	error = function() end
+	error = function() end,
+	info = function(...)
+		info_logs[#info_logs + 1] = { ... }
+	end,
+	warn = function(...)
+		warn_logs[#warn_logs + 1] = { ... }
+	end
 }
 
 _G.require = function(name)
@@ -106,17 +102,42 @@ assert(config_loader, load_err)
 local app_config = config_loader()
 
 local cfg = app_config.load()
-assert_equal(cfg.sample_interval_ms, 10000, "default sample interval")
-assert_equal(cfg.report_interval_ms, 10000, "default report interval")
-assert_equal(cfg.usb_sample_interval_ms, 10000, "default usb sample interval")
-assert_equal(cfg.battery_sample_interval_ms, 60000, "default battery sample interval")
+assert_equal(cfg.usb_interval_ms, 10000, "default usb interval")
+assert_equal(cfg.battery_interval_ms, 60000, "default battery interval")
 assert_equal(cfg.battery_prewake_ms, 5000, "default battery prewake")
+assert_equal(cfg.airlbs_project_id, "lvU4QJ", "default airlbs project id")
+assert_equal(cfg.airlbs_project_key, "hbHtgCRY8OUvCqEC3NEyLZb5CS0w7oHV", "default airlbs project key")
 assert_equal(cfg.airlbs_timeout, 10000, "default airlbs timeout")
 assert_equal(cfg.temp_diff_high, 5, "default temp diff high")
 assert_equal(cfg.alarm_sms_phone, "15025376653", "default alarm sms phone")
+assert_equal(info_logs[1][2], "load config", "load should log config summary")
+
+fake_store["app:config"] = {
+	airlbs_project_id = "",
+	airlbs_project_key = "",
+	usb_sample_interval_ms = 11000,
+	usb_report_interval_ms = 15000,
+	battery_sample_interval_ms = 61000,
+	battery_report_interval_ms = 90000,
+	sample_interval_ms = 7000,
+	report_interval_ms = 8000
+}
+info_logs = {}
+warn_logs = {}
+
+local overridden = app_config.load()
+assert_equal(overridden.airlbs_project_id, "", "persisted blank airlbs project id should override defaults")
+assert_equal(overridden.airlbs_project_key, "", "persisted blank airlbs project key should override defaults")
+assert_equal(overridden.usb_interval_ms, 15000, "legacy usb intervals should migrate to max interval")
+assert_equal(overridden.battery_interval_ms, 90000, "legacy battery intervals should migrate to max interval")
+assert_nil(overridden.sample_interval_ms, "legacy sample interval should be removed from effective config")
+assert_nil(overridden.usb_sample_interval_ms, "legacy usb sample interval should be removed from effective config")
+assert_equal(#warn_logs, 1, "blank persisted airlbs credentials should emit a warning")
+assert_equal(warn_logs[1][2], "persisted airlbs config overrides defaults with blank values", "warning should explain airlbs override")
 
 local updated = app_config.update({
-	report_interval_ms = 15000,
+	usb_interval_ms = 15000,
+	battery_interval_ms = 75000,
 	battery_prewake_ms = 8000,
 	temp_high = 60,
 	temp_diff_high = 6,
@@ -125,7 +146,8 @@ local updated = app_config.update({
 	current_low = "bad",
 	MQTT = {}
 })
-assert_equal(updated.report_interval_ms, 15000, "updated report interval")
+assert_equal(updated.usb_interval_ms, 15000, "updated usb interval")
+assert_equal(updated.battery_interval_ms, 75000, "updated battery interval")
 assert_equal(updated.battery_prewake_ms, 8000, "updated battery prewake")
 assert_equal(updated.temp_high, 60, "updated temp high")
 assert_equal(updated.temp_diff_high, 6, "updated temp diff high")
@@ -135,7 +157,8 @@ assert_nil(updated.current_low, "wrong type should be ignored")
 assert_nil(updated.MQTT, "static config should not be mutable")
 
 local reloaded = app_config.load()
-assert_equal(reloaded.report_interval_ms, 15000, "persisted report interval")
+assert_equal(reloaded.usb_interval_ms, 15000, "persisted usb interval")
+assert_equal(reloaded.battery_interval_ms, 75000, "persisted battery interval")
 assert_equal(reloaded.battery_prewake_ms, 8000, "persisted battery prewake")
 assert_equal(reloaded.temp_high, 60, "persisted temp high")
 assert_equal(reloaded.current_low, 0, "invalid current low should not persist")

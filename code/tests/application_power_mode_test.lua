@@ -29,12 +29,8 @@ local fake_fskv = {
 
 local function current_cfg()
 	return {
-		sample_interval_ms = 10000,
-		report_interval_ms = 10000,
-		usb_sample_interval_ms = 10000,
-		usb_report_interval_ms = 10000,
-		battery_sample_interval_ms = 60000,
-		battery_report_interval_ms = 60000,
+		usb_interval_ms = 10000,
+		battery_interval_ms = 60000,
 		battery_prewake_ms = 5000,
 		airlbs_project_id = "",
 		airlbs_project_key = "",
@@ -105,8 +101,7 @@ local fake_modules = {
 		current_profile = function(cfg)
 			return {
 				mode = "BATTERY",
-				sample_interval_ms = cfg.battery_sample_interval_ms,
-				report_interval_ms = cfg.battery_report_interval_ms,
+				interval_ms = cfg.battery_interval_ms,
 				prewake_ms = cfg.battery_prewake_ms
 			}
 		end,
@@ -114,7 +109,7 @@ local fake_modules = {
 			return true
 		end,
 		prepare_next_wakeup = function(cfg)
-			wakeup_calls[#wakeup_calls + 1] = cfg.battery_sample_interval_ms - cfg.battery_prewake_ms
+			wakeup_calls[#wakeup_calls + 1] = cfg.battery_interval_ms - cfg.battery_prewake_ms
 			return true
 		end,
 		enter_sleep = function()

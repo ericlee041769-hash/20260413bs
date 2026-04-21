@@ -35,16 +35,14 @@ function app_power.current_profile(cfg)
 	if mode == "BATTERY" then
 		return {
 			mode = "BATTERY",
-			sample_interval_ms = cfg.battery_sample_interval_ms,
-			report_interval_ms = cfg.battery_report_interval_ms,
+			interval_ms = cfg.battery_interval_ms,
 			prewake_ms = cfg.battery_prewake_ms
 		}
 	end
 
 	return {
 		mode = "USB",
-		sample_interval_ms = cfg.usb_sample_interval_ms,
-		report_interval_ms = cfg.usb_report_interval_ms,
+		interval_ms = cfg.usb_interval_ms,
 		prewake_ms = 0
 	}
 end
@@ -54,7 +52,7 @@ function app_power.should_sleep_after_cycle(cfg)
 end
 
 function app_power.next_wakeup_delay_ms(cfg)
-	local delay_ms = cfg.battery_sample_interval_ms - cfg.battery_prewake_ms
+	local delay_ms = cfg.battery_interval_ms - cfg.battery_prewake_ms
 
 	if delay_ms < 0 then
 		return 0

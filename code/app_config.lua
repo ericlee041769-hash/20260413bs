@@ -8,28 +8,30 @@ local DEFAULT_CONFIG = config.RUNTIME_DEFAULTS or {}
 local FIELD_TYPES = config.RUNTIME_FIELD_TYPES or {}
 local MUTABLE_FIELDS = config.RUNTIME_MUTABLE_FIELDS or {}
 
+local function log_info(...)
+	if log and type(log.info) == "function" then
+		log.info(...)
+	end
+end
+
+local function log_warn(...)
+	if log and type(log.warn) == "function" then
+		log.warn(...)
+	end
+end
+
 local function clone_table(source)
 	local target = {}
+
+	if type(source) ~= "table" then
+		return target
+	end
 
 	for key, value in pairs(source) do
 		target[key] = value
 	end
 
 	return target
-end
-
-local function merge_tables(base, overlay)
-	local merged = clone_table(base)
-
-	if type(overlay) ~= "table" then
-		return merged
-	end
-
-	for key, value in pairs(overlay) do
-		merged[key] = value
-	end
-
-	return merged
 end
 
 local function load_persisted()
@@ -46,10 +48,112 @@ local function save_persisted(cfg)
 	end
 end
 
+local function key_length(value)
+	if type(value) == "string" then
+		return #value
+	end
+
+	return 0
+end
+
+local function max_number(...)
+	local result = nil
+	local values = { ... }
+
+	for i = 1, #values do
+		if type(values[i]) == "number" then
+			if result == nil or values[i] > result then
+				result = values[i]
+			end
+		end
+	end
+
+	return result
+end
+
+local function merge_known_fields(base, overlay)
+	local merged = clone_table(base)
+
+	if type(overlay) ~= "table" then
+		return merged
+	end
+
+	for key, _ in pairs(base) do
+		if overlay[key] ~= nil then
+			merged[key] = overlay[key]
+		end
+	end
+
+	return merged
+end
+
+local function migrate_legacy_intervals(persisted)
+	local migrated = clone_table(persisted)
+	local usb_interval
+	local battery_interval
+
+	if type(persisted) ~= "table" then
+		return migrated
+	end
+
+	usb_interval = max_number(
+		persisted.usb_interval_ms,
+		persisted.usb_sample_interval_ms,
+		persisted.usb_report_interval_ms,
+		persisted.sample_interval_ms,
+		persisted.report_interval_ms
+	)
+	if usb_interval ~= nil then
+		migrated.usb_interval_ms = usb_interval
+	end
+
+	battery_interval = max_number(
+		persisted.battery_interval_ms,
+		persisted.battery_sample_interval_ms,
+		persisted.battery_report_interval_ms,
+		persisted.sample_interval_ms,
+		persisted.report_interval_ms
+	)
+	if battery_interval ~= nil then
+		migrated.battery_interval_ms = battery_interval
+	end
+
+	if usb_interval ~= nil or battery_interval ~= nil then
+		log_info("app_config", "migrate legacy intervals", usb_interval, battery_interval)
+	end
+
+	return migrated
+end
+
+local function maybe_warn_airlbs_override(persisted, effective)
+	if type(DEFAULT_CONFIG.airlbs_project_id) ~= "string" or DEFAULT_CONFIG.airlbs_project_id == "" then
+		return
+	end
+
+	if type(persisted) ~= "table" then
+		return
+	end
+
+	if persisted.airlbs_project_id == "" and effective.airlbs_project_id == "" then
+		log_warn("app_config", "persisted airlbs config overrides defaults with blank values")
+	end
+end
+
 function app_config.load()
 	local persisted = load_persisted()
+	local migrated = migrate_legacy_intervals(persisted)
 
-	current_config = merge_tables(DEFAULT_CONFIG, persisted)
+	current_config = merge_known_fields(DEFAULT_CONFIG, migrated)
+	log_info(
+		"app_config",
+		"load config",
+		persisted and persisted.airlbs_project_id or nil,
+		DEFAULT_CONFIG.airlbs_project_id,
+		current_config.airlbs_project_id,
+		key_length(current_config.airlbs_project_key),
+		current_config.airlbs_timeout
+	)
+	maybe_warn_airlbs_override(persisted, current_config)
 	save_persisted(current_config)
 	return clone_table(current_config)
 end

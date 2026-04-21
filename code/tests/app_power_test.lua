@@ -43,10 +43,8 @@ local function assert_false(value, message)
 end
 
 local cfg = {
-	usb_sample_interval_ms = 10000,
-	usb_report_interval_ms = 10000,
-	battery_sample_interval_ms = 60000,
-	battery_report_interval_ms = 60000,
+	usb_interval_ms = 10000,
+	battery_interval_ms = 60000,
 	battery_prewake_ms = 5000
 }
 
@@ -56,8 +54,7 @@ local app_power = loader()
 
 local usb_profile = app_power.current_profile(cfg)
 assert_equal(usb_profile.mode, "USB", "vbus high should select usb mode")
-assert_equal(usb_profile.sample_interval_ms, 10000, "usb sample interval")
-assert_equal(usb_profile.report_interval_ms, 10000, "usb report interval")
+assert_equal(usb_profile.interval_ms, 10000, "usb interval")
 assert_equal(usb_profile.prewake_ms, 0, "usb prewake should be zero")
 assert_false(app_power.should_sleep_after_cycle(cfg), "usb mode should not sleep after cycle")
 
@@ -67,8 +64,7 @@ end
 
 local battery_profile = app_power.current_profile(cfg)
 assert_equal(battery_profile.mode, "BATTERY", "vbus low should select battery mode")
-assert_equal(battery_profile.sample_interval_ms, 60000, "battery sample interval")
-assert_equal(battery_profile.report_interval_ms, 60000, "battery report interval")
+assert_equal(battery_profile.interval_ms, 60000, "battery interval")
 assert_equal(battery_profile.prewake_ms, 5000, "battery prewake")
 assert_true(app_power.should_sleep_after_cycle(cfg), "battery mode should sleep after cycle")
 assert_equal(app_power.next_wakeup_delay_ms(cfg), 55000, "battery next wakeup should subtract prewake")

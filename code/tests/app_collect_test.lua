@@ -44,6 +44,9 @@ _G.glbs = {
 _G.os = {
 	date = function()
 		return "2026-04-21 12:00:00"
+	end,
+	time = function()
+		return 1776744000
 	end
 }
 
@@ -53,6 +56,7 @@ local app_collect = collect_loader()
 
 local snapshot = app_collect.collect_once()
 assert(snapshot.timestamp == "2026-04-21 12:00:00", "timestamp should be included")
+assert(snapshot.timestamp_ms == 1776744000000.0, "timestamp ms should be included")
 assert(snapshot.battery_mv == 3800, "battery should be included")
 assert(snapshot.battery_percent == 56, "battery percent should be included")
 assert(snapshot.current_raw == 1234, "current raw should be included")

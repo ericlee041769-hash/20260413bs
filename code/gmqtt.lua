@@ -61,6 +61,22 @@ local function current_latest()
 	return nil
 end
 
+local function runtime_mutable_fields()
+	if type(config.RUNTIME_MUTABLE_FIELDS) == "table" then
+		return config.RUNTIME_MUTABLE_FIELDS
+	end
+
+	return {}
+end
+
+local function gateway_config_fields()
+	if type(config.GATEWAY_CONFIG_FIELDS) == "table" then
+		return config.GATEWAY_CONFIG_FIELDS
+	end
+
+	return {}
+end
+
 local function extract_temp_humidity(snapshot, index)
 	local entry = snapshot and snapshot.temp_hum and snapshot.temp_hum[index]
 	if type(entry) ~= "table" or entry.ok ~= true then
@@ -68,6 +84,15 @@ local function extract_temp_humidity(snapshot, index)
 	end
 
 	return entry.temperature, entry.humidity
+end
+
+local function extract_pressure(snapshot, index)
+	local entry = snapshot and snapshot.pressure and snapshot.pressure[index]
+	if type(entry) ~= "table" or entry.ok ~= true then
+		return nil
+	end
+
+	return entry.pressure
 end
 
 local function format_location(location)
@@ -94,28 +119,76 @@ local function round_one_decimal(value)
 	return math.ceil(value * 10 - 0.5) / 10
 end
 
+local function to_gateway_time(snapshot)
+	if type(snapshot) ~= "table" then
+		return ""
+	end
+
+	if type(snapshot.timestamp) == "string" then
+		return snapshot.timestamp
+	end
+
+	return ""
+end
+
+local function build_runtime_config_payload(cfg)
+	local reply = {}
+	local allowed_fields = gateway_config_fields()
+
+	for key, allowed in pairs(allowed_fields) do
+		if allowed == true and cfg[key] ~= nil then
+			reply[key] = cfg[key]
+		end
+	end
+
+	return reply
+end
+
+local function merge_tables(target, overlay)
+	if type(overlay) ~= "table" then
+		return target
+	end
+
+	for key, value in pairs(overlay) do
+		target[key] = value
+	end
+
+	return target
+end
+
 local function build_gateway_dp(cfg, snapshot)
 	local temp1
 	local humidity1
 	local temp2
 	local humidity2
+	local pressure1
+	local pressure2
 	local reply = {}
+	local config_payload = build_runtime_config_payload(cfg or {})
 
 	temp1, humidity1 = extract_temp_humidity(snapshot, 0)
 	temp2, humidity2 = extract_temp_humidity(snapshot, 1)
+	pressure1 = extract_pressure(snapshot, 1)
+	pressure2 = extract_pressure(snapshot, 2)
 
 	reply.temp = temp1
 	reply.door = snapshot and not snapshot.door_open or false
 	reply.humidity = humidity1
 	reply.err = snapshot and snapshot.err and true or false
-	reply.time = snapshot and snapshot.timestamp or ""
-	reply.phonenum = cfg and cfg.alarm_sms_phone or ""
+	reply.time = to_gateway_time(snapshot)
 	reply.temp2 = temp2
 	reply.humidity2 = humidity2
 	reply.lpoint = format_location(snapshot and snapshot.location)
+	reply.pressure1 = pressure1
+	reply.pressure2 = pressure2
+	reply.config = config_payload
 
 	if type(temp1) == "number" and type(temp2) == "number" then
 		reply.tempdiff = round_one_decimal(math.abs(temp2 - temp1))
+	end
+
+	if type(pressure1) == "number" and type(pressure2) == "number" then
+		reply.pressurediff = round_one_decimal(math.abs(pressure2 - pressure1))
 	end
 
 	return reply
@@ -140,6 +213,11 @@ local function build_get_reply_dp(keys)
 end
 
 local function apply_set_dp(dp)
+	local changes = {}
+	local applied
+	local reply = {}
+	local allowed_fields = gateway_config_fields()
+
 	if not app_config or type(app_config.update) ~= "function" then
 		return {}
 	end
@@ -148,17 +226,22 @@ local function apply_set_dp(dp)
 		return {}
 	end
 
-	local applied = app_config.update({
-		alarm_sms_phone = dp.phonenum
-	})
-
-	if type(applied.alarm_sms_phone) == "string" then
-		return {
-			phonenum = applied.alarm_sms_phone
-		}
+	if type(dp.config) ~= "table" then
+		return {}
 	end
 
-	return {}
+	for key, allowed in pairs(allowed_fields) do
+		if allowed == true and dp.config[key] ~= nil then
+			changes[key] = dp.config[key]
+		end
+	end
+
+	applied = app_config.update(changes)
+	if next(applied) ~= nil then
+		reply.config = applied
+	end
+
+	return reply
 end
 
 local function register_mqtt_receive_handler()
