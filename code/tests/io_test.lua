@@ -5,7 +5,11 @@ local infos = {}
 _G.gpio = {
 	WAKEUP0 = 101,
 	PULLUP = 201,
+	BOTH = 250,
 	FALLING = 301,
+	_input_levels = {
+		[101] = 0
+	},
 	setup = function(pin, level, pull, irq)
 		calls[#calls + 1] = {
 			fn = "setup",
@@ -14,6 +18,12 @@ _G.gpio = {
 			pull = pull,
 			irq = irq
 		}
+
+		if type(level) == "function" then
+			return function()
+				return gpio._input_levels[pin] or 0
+			end
+		end
 	end,
 	set = function(pin, level)
 		calls[#calls + 1] = { fn = "set", pin = pin, level = level }
@@ -90,16 +100,28 @@ assert_equal(wakeup_setup_call.fn, "setup", "wakeup0 setup function name")
 assert_equal(wakeup_setup_call.pin, gpio.WAKEUP0, "wakeup0 setup pin")
 assert_equal(type(wakeup_setup_call.level), "function", "wakeup0 callback type")
 assert_equal(wakeup_setup_call.pull, gpio.PULLUP, "wakeup0 pull mode")
-assert_equal(wakeup_setup_call.irq, gpio.FALLING, "wakeup0 irq mode")
+assert_equal(wakeup_setup_call.irq, gpio.BOTH, "wakeup0 irq mode")
+assert_false(io_ctrl.get_door_state(), "initial door state should be closed")
 
 clear_records()
+gpio._input_levels[gpio.WAKEUP0] = 0
 wakeup_setup_call.level(0, gpio.WAKEUP0)
 assert_equal(#infos, 1, "wakeup0 callback should log once")
 assert_equal(infos[1][1], "ggpio", "wakeup0 log tag")
-assert_equal(infos[1][2], "door opened", "wakeup0 log message")
+assert_equal(infos[1][2], "门磁触发", "wakeup0 log message")
 assert_equal(infos[1][3], gpio.WAKEUP0, "wakeup0 log pin")
 assert_equal(infos[1][4], 0, "wakeup0 log level")
-assert_true(io_ctrl.get_door_state(), "door state should become open after callback")
+assert_equal(infos[1][5], "关闭", "wakeup0 log door state")
+assert_false(io_ctrl.get_door_state(), "door state should become closed after low level callback")
+
+clear_records()
+gpio._input_levels[gpio.WAKEUP0] = 1
+wakeup_setup_call.level(1, gpio.WAKEUP0)
+assert_equal(#infos, 1, "second wakeup0 callback should log once")
+assert_equal(infos[1][2], "门磁触发", "second wakeup0 log message")
+assert_equal(infos[1][4], 1, "second wakeup0 log level")
+assert_equal(infos[1][5], "打开", "second wakeup0 log door state")
+assert_true(io_ctrl.get_door_state(), "door state should become open after high level callback")
 
 clear_records()
 assert_true(io_ctrl.set(io_ctrl.GPIO_ADC_EN, false), "set low return")

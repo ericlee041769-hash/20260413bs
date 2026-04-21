@@ -13,6 +13,12 @@ local ALARM_ORDER = {
 	"pressure_diff_high"
 }
 
+local function log_info(...)
+	if log and type(log.info) == "function" then
+		log.info(...)
+	end
+end
+
 local function format_number(value)
 	if type(value) ~= "number" then
 		return tostring(value)
@@ -77,6 +83,19 @@ local function build_segments(snapshot, values, new_alarm_map)
 
 	segments[#segments + 1] = "时间=" .. tostring(snapshot.timestamp or "")
 	return "告警:" .. table.concat(segments, "; ")
+end
+
+local function join_alarm_keys(active_map)
+	local keys = {}
+
+	for i = 1, #ALARM_ORDER do
+		local key = ALARM_ORDER[i]
+		if active_map[key] then
+			keys[#keys + 1] = key
+		end
+	end
+
+	return table.concat(keys, ",")
 end
 
 function app_alarm.evaluate(cfg, snapshot, runtime, now_ms)
@@ -157,7 +176,7 @@ function app_alarm.evaluate(cfg, snapshot, runtime, now_ms)
 		end
 	end
 
-	return {
+	local result = {
 		active_map = clone_table(active_map),
 		new_alarm_keys = new_alarm_keys,
 		should_send_sms = #new_alarm_keys > 0,
@@ -167,6 +186,16 @@ function app_alarm.evaluate(cfg, snapshot, runtime, now_ms)
 			door_open_since_ms = door_open_since_ms
 		}
 	}
+
+	if result.should_send_sms then
+		log_info("app_alarm", "命中新告警", table.concat(new_alarm_keys, ","), result.sms_text)
+	elseif next(active_map) ~= nil then
+		log_info("app_alarm", "告警持续中，本轮不重复发送", join_alarm_keys(active_map))
+	else
+		log_info("app_alarm", "本轮无告警")
+	end
+
+	return result
 end
 
 return app_alarm

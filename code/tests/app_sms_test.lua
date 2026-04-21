@@ -51,6 +51,11 @@ local loader, load_err = loadfile("app_sms.lua")
 assert(loader, load_err)
 local app_sms = loader()
 
+assert_false(app_sms.send_alert("13800138000", "告警:测试"), "send_alert should skip before ready")
+assert_equal(#send_calls, 0, "send_alert should not call sms before ready")
+
+app_sms.set_ready(true)
+
 local ok = app_sms.send_alert("13800138000", "告警:测试")
 assert_true(ok, "send_alert should return wait result")
 assert_equal(send_calls[1].phone, "13800138000", "send_alert should use provided phone")
@@ -71,6 +76,8 @@ _G.sms.sendLong = function(phone, text, auto_fix)
 end
 
 assert_false(app_sms.send_alert("13800138000", "告警:失败路径"), "failed wait should return false")
+app_sms.set_ready(false)
+assert_false(app_sms.send_alert("13800138000", "告警:再次跳过"), "send_alert should skip after ready reset")
 assert_false(app_sms.send_alert("", "告警:空号码"), "empty phone should fail")
 assert_false(app_sms.send_alert("13800138000", ""), "empty text should fail")
 

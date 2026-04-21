@@ -137,8 +137,21 @@ assert(#task_queue == 1, "gmqtt should only create the connection task")
 assert(gmqtt.publish_snapshot({
 	timestamp = "2026-04-21 12:00:00",
 	battery_mv = 3800
-}) == true, "gmqtt should publish provided snapshot")
+}) == false, "gmqtt should skip publish before mqtt ready")
+assert(#published_dp == 0, "publish should be skipped before mqtt ready")
+
+subscriptions["IOT_MQTT_CONNECTED"]()
+assert(gmqtt.publish_snapshot({
+	timestamp = "2026-04-21 12:00:00",
+	battery_mv = 3800
+}) == true, "gmqtt should publish provided snapshot after mqtt ready")
 assert(published_dp[1].battery_mv == 3800, "published snapshot should use real data")
+
+subscriptions["IOT_MQTT_DISCONNECTED"](-1)
+assert(gmqtt.publish_snapshot({
+	timestamp = "2026-04-21 12:00:00",
+	battery_mv = 3800
+}) == false, "gmqtt should skip publish after mqtt disconnected")
 
 subscriptions["IOT_MQTT_RECV"]("get/topic", "get_payload", {})
 assert(get_replies[1].message_id == "get-1", "get reply message id")

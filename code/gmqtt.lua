@@ -6,6 +6,18 @@ local iot = require("iot")
 
 local app_config = nil
 local app_state = nil
+local mqtt_ready = false
+
+local function safe_json_encode(value)
+	if json and type(json.encode) == "function" then
+		local ok, encoded = pcall(json.encode, value)
+		if ok then
+			return encoded
+		end
+	end
+
+	return tostring(value)
+end
 
 local function parse_msg(payload)
 	if type(payload) ~= "string" or payload == "" then
@@ -80,10 +92,11 @@ end
 
 local function register_mqtt_receive_handler()
 	sys.subscribe(iot.event_recv_name(), function(topic, payload, metas)
-		log.info("gmqtt", "mqtt recv", topic, payload, json.encode(metas))
+		log.info("gmqtt", "收到云端消息", topic, payload, safe_json_encode(metas))
 
 		local msg = parse_msg(payload)
 		if not msg then
+			log.error("gmqtt", "云端消息解析失败", topic)
 			return
 		end
 
@@ -91,23 +104,25 @@ local function register_mqtt_receive_handler()
 			local message_id = to_message_id(msg)
 			local reply_dp = build_get_reply_dp(msg.dp)
 			local ok = iot.publish_get_reply(message_id, true, reply_dp, nil, nil, msg.deviceId)
-			log.info("gmqtt", "dp/get reply", ok, message_id, json.encode(reply_dp))
+			log.info("gmqtt", "已回复配置读取", ok, message_id, safe_json_encode(reply_dp))
 		elseif topic == config.MQTT.setTopic then
 			local message_id = to_message_id(msg)
 			local changed = apply_set_dp(msg.dp)
 			local ok = iot.publish_set_reply(message_id, true, changed)
-			log.info("gmqtt", "dp/set reply", ok, message_id, json.encode(changed))
+			log.info("gmqtt", "已回复配置写入", ok, message_id, safe_json_encode(changed))
 		end
 	end)
 end
 
 local function register_mqtt_state_handlers()
 	sys.subscribe(iot.event_conn_name(), function()
-		log.info("gmqtt", "mqtt connected event")
+		mqtt_ready = true
+		log.info("gmqtt", "MQTT连接成功，允许数据上报")
 	end)
 
 	sys.subscribe(iot.event_disc_name(), function(code)
-		log.info("gmqtt", "mqtt disconnected", code)
+		mqtt_ready = false
+		log.info("gmqtt", "MQTT连接断开", code)
 	end)
 end
 
@@ -133,12 +148,24 @@ end
 function gmqtt.publish_snapshot(snapshot)
 	if type(snapshot) ~= "table" then
 		if log and log.error then
-			log.error("gmqtt", "snapshot must be table")
+			log.error("gmqtt", "采集快照必须为table")
 		end
 		return false
 	end
 
-	return iot.publish_dp(snapshot) and true or false
+	if not mqtt_ready then
+		log.info("gmqtt", "MQTT未就绪，跳过本轮上报")
+		return false
+	end
+
+	log.info("gmqtt", "准备上报采集快照", safe_json_encode(snapshot))
+	if iot.publish_dp(snapshot) then
+		log.info("gmqtt", "采集快照上报请求已提交")
+		return true
+	end
+
+	log.error("gmqtt", "采集快照上报失败")
+	return false
 end
 
 function gmqtt.start(services)
@@ -151,6 +178,7 @@ function gmqtt.start(services)
 
 	app_config = services.app_config
 	app_state = services.app_state
+	mqtt_ready = false
 
 	start_mqtt_connection_task()
 	register_mqtt_receive_handler()
