@@ -112,6 +112,7 @@ local function start_collection_loop()
 			log_info("application", "开始一轮业务采集")
 			local snapshot = app_collect.collect_once()
 			local alarm = app_alarm.evaluate(cfg, snapshot, alarm_runtime, now_ms())
+			snapshot.err = next(alarm.active_map) ~= nil
 
 			log_info("application", "本轮采集快照", safe_json_encode(snapshot))
 			app_state.save_latest(snapshot)
