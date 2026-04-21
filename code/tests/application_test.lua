@@ -5,9 +5,13 @@ local saved_latest = nil
 local published_snapshots = {}
 local sms_calls = {}
 local alarm_calls = {}
+local algorithm_calls = {}
 local gmqtt_services = nil
 local fskv_init_calls = 0
 local sms_ready = false
+local collect_calls = 0
+local wait_calls = {}
+local door_state = true
 
 local fake_sys = {
 	taskInit = function(fn)
@@ -16,8 +20,11 @@ local fake_sys = {
 	subscribe = function(event_name, handler)
 		subscriptions[event_name] = handler
 	end,
-	wait = function()
-		error("stop-loop")
+	wait = function(ms)
+		wait_calls[#wait_calls + 1] = ms
+		if ms == 10000 then
+			error("stop-loop")
+		end
 	end
 }
 
@@ -28,27 +35,32 @@ local fake_fskv = {
 	end
 }
 
+local function current_cfg()
+	return {
+		sample_interval_ms = 10000,
+		report_interval_ms = 10000,
+		airlbs_project_id = "",
+		airlbs_project_key = "",
+		airlbs_timeout = 10000,
+		temp_low = -40,
+		temp_high = 85,
+		temp_diff_high = 5,
+		current_low = 0,
+		current_high = 50000,
+		pressure_diff_low = 1.0,
+		pressure_diff_high = 1.5,
+		door_open_warn_ms = 5000,
+		alarm_sms_phone = "15025376653"
+	}
+end
+
 local fake_app_config = {
 	load = function()
 		assert(fskv_init_calls == 1, "application should init fskv before config load")
-		return {
-			sample_interval_ms = 10000,
-			report_interval_ms = 10000,
-			airlbs_project_id = "",
-			airlbs_project_key = "",
-			airlbs_timeout = 10000,
-			alarm_sms_phone = "15025376653"
-		}
+		return current_cfg()
 	end,
 	get = function()
-		return {
-			sample_interval_ms = 10000,
-			report_interval_ms = 10000,
-			airlbs_project_id = "",
-			airlbs_project_key = "",
-			airlbs_timeout = 10000,
-			alarm_sms_phone = "15025376653"
-		}
+		return current_cfg()
 	end
 }
 
@@ -61,10 +73,11 @@ local fake_app_state = {
 
 local fake_app_collect = {
 	collect_once = function()
+		collect_calls = collect_calls + 1
 		return {
 			timestamp = "2026-04-21 16:00:00",
 			current_sensor_mv = 53000,
-			door_open = true,
+			door_open = collect_calls > 1,
 			temp_hum = {
 				[0] = { ok = true, temperature = 86.2 },
 				[1] = { ok = true, temperature = 80.0 }
@@ -72,6 +85,32 @@ local fake_app_collect = {
 			pressure = {
 				[1] = { ok = true, pressure = 100.0 },
 				[2] = { ok = true, pressure = 100.7 }
+			}
+		}
+	end
+}
+
+local fake_app_algorithm = {
+	apply = function(snapshot, runtime)
+		algorithm_calls[#algorithm_calls + 1] = {
+			snapshot = snapshot,
+			runtime = runtime
+		}
+
+		local processed = {
+			timestamp = snapshot.timestamp,
+			current_sensor_mv = snapshot.current_sensor_mv - 3000,
+			door_open = snapshot.door_open,
+			temp_hum = {
+				[0] = { ok = true, temperature = 66.2 },
+				[1] = { ok = true, temperature = 60.0 }
+			},
+			pressure = snapshot.pressure
+		}
+
+		return processed, {
+			current = {
+				window = { 51000, 52000, 53000 }
 			}
 		}
 	end
@@ -85,20 +124,33 @@ local fake_app_alarm = {
 			runtime = runtime,
 			now_ms = now_ms
 		}
-		return {
-			active_map = {
-				temp1_high = true
-			},
-			new_alarm_keys = {
-				"temp1_high"
-			},
-			should_send_sms = true,
-			sms_text = "告警:温度1高温=86.2; 时间=2026-04-21 16:00:00",
-			runtime = {
+
+		if snapshot.door_open then
+			local already_active = runtime and runtime.active_map and runtime.active_map.door_open_timeout == true
+			return {
 				active_map = {
-					temp1_high = true
+					door_open_timeout = true
 				},
-				door_open_since_ms = 1000
+				new_alarm_keys = already_active and {} or { "door_open_timeout" },
+				should_send_sms = not already_active,
+				sms_text = "告警:门持续打开超时; 时间=2026-04-21 16:00:00",
+				runtime = {
+					active_map = {
+						door_open_timeout = true
+					},
+					door_open_since_ms = 1000
+				}
+			}
+		end
+
+		return {
+			active_map = {},
+			new_alarm_keys = {},
+			should_send_sms = false,
+			sms_text = "",
+			runtime = {
+				active_map = {},
+				door_open_since_ms = nil
 			}
 		}
 	end
@@ -123,6 +175,9 @@ local fake_app_sms = {
 local fake_ggpio = {
 	init = function()
 		return true
+	end,
+	get_door_state = function()
+		return door_state
 	end
 }
 
@@ -159,6 +214,7 @@ local fake_modules = {
 	app_config = fake_app_config,
 	app_state = fake_app_state,
 	app_collect = fake_app_collect,
+	app_algorithm = fake_app_algorithm,
 	app_alarm = fake_app_alarm,
 	app_sms = fake_app_sms,
 	ggpio = fake_ggpio,
@@ -197,6 +253,7 @@ assert(loader, load_err)
 local application = loader()
 
 assert(application.start(), "application should start")
+assert(required_modules.app_algorithm, "application should require app_algorithm")
 assert(required_modules.app_alarm, "application should require app_alarm")
 assert(required_modules.app_sms, "application should require app_sms")
 assert(fskv_init_calls == 1, "application should init fskv once")
@@ -204,6 +261,7 @@ assert(gmqtt_services.app_config == fake_app_config, "gmqtt should receive app_c
 assert(gmqtt_services.app_state == fake_app_state, "gmqtt should receive app_state service")
 assert(#task_queue == 1, "application should create one collection task")
 assert(type(subscriptions["IP_READY"]) == "function", "application should subscribe IP_READY for sms readiness")
+assert(type(subscriptions["APP_DOOR_EDGE"]) == "function", "application should subscribe door edge events")
 
 subscriptions["IP_READY"]()
 
@@ -213,12 +271,29 @@ assert(string.find(err, "stop-loop", 1, true), "collection loop should stop via 
 
 assert(saved_latest ~= nil, "latest snapshot should be saved")
 assert(saved_latest.timestamp == "2026-04-21 16:00:00", "saved latest snapshot should use collected data")
-assert(saved_latest.err == true, "saved latest snapshot should include err flag")
+assert(saved_latest.temp_hum[0].temperature == 66.2, "saved latest snapshot should use processed temperature")
+assert(saved_latest.current_sensor_mv == 50000, "saved latest snapshot should use processed current")
+assert(saved_latest.err == false, "periodic latest snapshot should include err flag")
+assert(#algorithm_calls == 1, "application should apply algorithm once in periodic flow")
 assert(#alarm_calls == 1, "application should evaluate alarms once")
-assert(#sms_calls == 1, "application should send sms when a new alarm appears")
-assert(sms_calls[1].phone == "15025376653", "sms should use configured phone")
-assert(#published_snapshots == 1, "mqtt publish should continue after sms failure")
-assert(published_snapshots[1].timestamp == "2026-04-21 16:00:00", "published snapshot should match collected data")
-assert(published_snapshots[1].err == true, "published snapshot should include err flag")
+assert(#sms_calls == 0, "periodic flow should not send sms without new alarm")
+assert(#published_snapshots == 1, "periodic flow should publish once")
+assert(published_snapshots[1].temp_hum[0].temperature == 66.2, "published snapshot should use processed temperature")
+assert(published_snapshots[1].err == false, "periodic published snapshot should include err flag")
+
+subscriptions["APP_DOOR_EDGE"](101, 1)
+assert(#task_queue == 2, "door edge should create one debounce task")
+
+local event_ok, event_err = pcall(task_queue[2])
+assert(event_ok, event_err)
+assert(#wait_calls >= 3, "application should wait for debounce and timeout confirmation")
+assert(wait_calls[2] == 200, "application should debounce door event")
+assert(wait_calls[3] == 5000, "application should wait full door timeout before immediate handling")
+assert(#algorithm_calls == 2, "door timeout flow should re-run algorithm on immediate cycle")
+assert(#alarm_calls == 2, "door timeout flow should evaluate alarms again")
+assert(#sms_calls == 1, "door timeout should trigger immediate sms once")
+assert(sms_calls[1].phone == "15025376653", "door timeout sms should use configured phone")
+assert(#published_snapshots == 2, "door timeout should trigger immediate upload")
+assert(published_snapshots[2].err == true, "door timeout upload should include err flag")
 
 print("application_test.lua: PASS")

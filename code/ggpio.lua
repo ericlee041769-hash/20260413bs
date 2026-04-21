@@ -23,6 +23,7 @@ local managed_pin_set = {
 local pin_levels = {}
 local door_open = false
 local door_input_reader = nil
+local DOOR_EDGE_EVENT = "APP_DOOR_EDGE"
 
 local function normalize_level(level)
 	if level == false or level == 0 then
@@ -48,6 +49,9 @@ end
 local function wakeup0_callback(level, pin)
 	door_open = door_state_from_level(level)
 	log_info("ggpio", "门磁触发", pin, level, door_open and "打开" or "关闭")
+	if sys and type(sys.publish) == "function" then
+		sys.publish(DOOR_EDGE_EVENT, pin, level)
+	end
 end
 
 local function setup_wakeup0()
