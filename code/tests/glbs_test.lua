@@ -54,6 +54,7 @@ local module_loader, load_err = loadfile("glbs.lua")
 assert(module_loader, load_err)
 local glbs = module_loader()
 
+assert_false(glbs.is_ready(), "glbs should report not ready before init")
 local before_init = glbs.get_location()
 assert_location(before_init, 0, 0, "before init fallback")
 assert_equal(#error_logs, 1, "before init should log once")
@@ -62,6 +63,7 @@ assert_false(glbs.init({}), "init should reject missing project_id")
 assert_equal(#error_logs, 2, "missing project_id should log")
 
 assert_true(glbs.init({ project_id = "demo_project" }), "init should accept valid project_id")
+assert_true(glbs.is_ready(), "glbs should report ready after init")
 
 request_calls = {}
 request_results = {
@@ -110,6 +112,7 @@ assert_location(failed_refresh_location, 30.1234567, 120.7654321, "failed refres
 assert_equal(#request_calls, 3, "failed refresh should still attempt request")
 
 assert_true(glbs.init({ project_id = "fresh_project" }), "re-init should reset state")
+assert_true(glbs.is_ready(), "glbs should stay ready after re-init")
 current_time = 300
 request_calls = {}
 request_results = {

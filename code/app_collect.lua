@@ -6,6 +6,23 @@ local gsht30 = rawget(_G, "gsht30") or require("gsht30")
 local gbaro = rawget(_G, "gbaro") or require("gbaro")
 local glbs = rawget(_G, "glbs") or require("glbs")
 
+local function log_info(...)
+	if log and type(log.info) == "function" then
+		log.info(...)
+	end
+end
+
+local function safe_json_encode(value)
+	if json and type(json.encode) == "function" then
+		local ok, encoded = pcall(json.encode, value)
+		if ok then
+			return encoded
+		end
+	end
+
+	return tostring(value)
+end
+
 local function safe_call(fn, ...)
 	if type(fn) ~= "function" then
 		return false
@@ -42,6 +59,11 @@ local function read_door_state()
 end
 
 local function read_location()
+	if type(glbs) == "table" and type(glbs.is_ready) == "function" and not glbs.is_ready() then
+		log_info("app_collect", "AirLBS未初始化，使用默认坐标")
+		return { 0, 0 }
+	end
+
 	local ok, location = safe_call(glbs and glbs.get_location)
 	if not ok or type(location) ~= "table" then
 		return { 0, 0 }
@@ -71,8 +93,7 @@ end
 function app_collect.collect_once()
 	local battery_mv, battery_percent = read_battery()
 	local current_raw, current_mv, current_sensor_mv = read_current()
-
-	return {
+	local snapshot = {
 		timestamp = os.date("%Y-%m-%d %H:%M:%S"),
 		battery_mv = battery_mv,
 		battery_percent = battery_percent,
@@ -84,6 +105,9 @@ function app_collect.collect_once()
 		temp_hum = read_temp_hum(),
 		pressure = read_pressure()
 	}
+
+	log_info("app_collect", "采集完成", safe_json_encode(snapshot))
+	return snapshot
 end
 
 return app_collect

@@ -1,22 +1,36 @@
 local required_modules = {}
 local task_queue = {}
+local subscriptions = {}
 local saved_latest = nil
 local published_snapshots = {}
 local sms_calls = {}
 local alarm_calls = {}
 local gmqtt_services = nil
+local fskv_init_calls = 0
+local sms_ready = false
 
 local fake_sys = {
 	taskInit = function(fn)
 		task_queue[#task_queue + 1] = fn
+	end,
+	subscribe = function(event_name, handler)
+		subscriptions[event_name] = handler
 	end,
 	wait = function()
 		error("stop-loop")
 	end
 }
 
+local fake_fskv = {
+	init = function()
+		fskv_init_calls = fskv_init_calls + 1
+		return true
+	end
+}
+
 local fake_app_config = {
 	load = function()
+		assert(fskv_init_calls == 1, "application should init fskv before config load")
 		return {
 			sample_interval_ms = 10000,
 			report_interval_ms = 10000,
@@ -91,7 +105,13 @@ local fake_app_alarm = {
 }
 
 local fake_app_sms = {
+	set_ready = function(ready)
+		sms_ready = ready and true or false
+	end,
 	send_alert = function(phone, text)
+		if not sms_ready then
+			return false
+		end
 		sms_calls[#sms_calls + 1] = {
 			phone = phone,
 			text = text
@@ -151,6 +171,7 @@ local fake_modules = {
 local env = {
 	_G = nil,
 	sys = fake_sys,
+	fskv = fake_fskv,
 	os = {
 		time = function()
 			return 100
@@ -178,9 +199,13 @@ local application = loader()
 assert(application.start(), "application should start")
 assert(required_modules.app_alarm, "application should require app_alarm")
 assert(required_modules.app_sms, "application should require app_sms")
+assert(fskv_init_calls == 1, "application should init fskv once")
 assert(gmqtt_services.app_config == fake_app_config, "gmqtt should receive app_config service")
 assert(gmqtt_services.app_state == fake_app_state, "gmqtt should receive app_state service")
 assert(#task_queue == 1, "application should create one collection task")
+assert(type(subscriptions["IP_READY"]) == "function", "application should subscribe IP_READY for sms readiness")
+
+subscriptions["IP_READY"]()
 
 local ok, err = pcall(task_queue[1])
 assert(not ok, "collection loop should be interrupted by fake wait")

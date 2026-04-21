@@ -16,6 +16,12 @@ local function log_error(tag, ...)
 	end
 end
 
+local function log_info(tag, ...)
+	if log and type(log.info) == "function" then
+		log.info(tag, ...)
+	end
+end
+
 local function copy_location(source)
 	return { source[1], source[2] }
 end
@@ -58,6 +64,7 @@ local function request_location(request_time_ms)
 	if ok and type(data) == "table" and type(data.lat) == "number" and type(data.lng) == "number" then
 		last_location = { data.lat, data.lng }
 		has_last_location = true
+		log_info("glbs.get_location", "定位成功", data.lat, data.lng)
 		return true
 	end
 
@@ -84,6 +91,10 @@ function glbs.init(cfg)
 	is_inited = true
 	reset_runtime_state()
 	return true
+end
+
+function glbs.is_ready()
+	return is_inited
 end
 
 function glbs.get_location()

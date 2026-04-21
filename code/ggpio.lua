@@ -22,6 +22,7 @@ local managed_pin_set = {
 
 local pin_levels = {}
 local door_open = false
+local door_input_reader = nil
 
 local function normalize_level(level)
 	if level == false or level == 0 then
@@ -30,20 +31,33 @@ local function normalize_level(level)
 	return 1
 end
 
+local function log_info(...)
+	if log and type(log.info) == "function" then
+		log.info(...)
+	end
+end
+
+local function door_state_from_level(level)
+	return normalize_level(level) ~= 0
+end
+
 local function is_valid_pin(pin)
 	return managed_pin_set[pin] == true
 end
 
 local function wakeup0_callback(level, pin)
-	door_open = (level == 0)
-
-	if log and log.info then
-		log.info("ggpio", "door opened", pin, level)
-	end
+	door_open = door_state_from_level(level)
+	log_info("ggpio", "门磁触发", pin, level, door_open and "打开" or "关闭")
 end
 
 local function setup_wakeup0()
-	gpio.setup(io_ctrl.WAKEUP0_DOOR, wakeup0_callback, gpio.PULLUP, gpio.FALLING)
+	local irq_mode = gpio.BOTH or gpio.FALLING
+
+	door_input_reader = gpio.setup(io_ctrl.WAKEUP0_DOOR, wakeup0_callback, gpio.PULLUP, irq_mode)
+	if type(door_input_reader) == "function" then
+		door_open = door_state_from_level(door_input_reader())
+	end
+	log_info("ggpio", "门磁初始化", io_ctrl.WAKEUP0_DOOR, door_open and "打开" or "关闭")
 end
 
 function io_ctrl.init()
@@ -97,6 +111,9 @@ function io_ctrl.set_gpio28(level)
 end
 
 function io_ctrl.get_door_state()
+	if type(door_input_reader) == "function" then
+		door_open = door_state_from_level(door_input_reader())
+	end
 	return door_open
 end
 
