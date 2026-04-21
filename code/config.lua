@@ -1,20 +1,68 @@
 local config = {}
 
-config.phoneNum = "15025376653"
 config.MQTT = {
-    name = "developLink",
-    host = "con-mqttn.developlink.cloud",
-    port = 1883,
-    clientId = "d864865085015494",
-    username = "pe475014317757",
-    password = "7c59ffbea4cb450283bbaa34d685c6d5",
-    postTopic = "/pe475014317757/d864865085015494/dp/post",
-    getTopic = "/pe475014317757/d864865085015494/dp/get",
-    setTopic = "/pe475014317757/d864865085015494/dp/set",
-    getReplyTopic = "/pe475014317757/d864865085015494/dp/get/reply",
-    setReplyTopic = "/pe475014317757/d864865085015494/dp/set/reply"
+	name = "developLink",
+	host = "con-mqttn.developlink.cloud",
+	port = 1883,
+	clientId = "d864865085015494",
+	username = "pe475014317757",
+	password = "7c59ffbea4cb450283bbaa34d685c6d5",
+	postTopic = "/pe475014317757/d864865085015494/dp/post",
+	getTopic = "/pe475014317757/d864865085015494/dp/get",
+	setTopic = "/pe475014317757/d864865085015494/dp/set",
+	getReplyTopic = "/pe475014317757/d864865085015494/dp/get/reply",
+	setReplyTopic = "/pe475014317757/d864865085015494/dp/set/reply"
 }
 
+config.RUNTIME_DEFAULTS = {
+	sample_interval_ms = 10000,
+	report_interval_ms = 10000,
+	airlbs_project_id = "",
+	airlbs_project_key = "",
+	airlbs_timeout = 10000,
+	temp_low = -40,
+	temp_high = 85,
+	temp_diff_high = 5,
+	current_low = 0,
+	current_high = 50000,
+	pressure_diff_low = 1.0,
+	pressure_diff_high = 1.5,
+	door_open_warn_ms = 5000,
+	alarm_sms_phone = "15025376653"
+}
 
+config.RUNTIME_FIELD_TYPES = {
+	sample_interval_ms = "number",
+	report_interval_ms = "number",
+	airlbs_project_id = "string",
+	airlbs_project_key = "string",
+	airlbs_timeout = "number",
+	temp_low = "number",
+	temp_high = "number",
+	temp_diff_high = "number",
+	current_low = "number",
+	current_high = "number",
+	pressure_diff_low = "number",
+	pressure_diff_high = "number",
+	door_open_warn_ms = "number",
+	alarm_sms_phone = "string"
+}
+
+config.RUNTIME_MUTABLE_FIELDS = {
+	sample_interval_ms = true,
+	report_interval_ms = true,
+	airlbs_project_id = true,
+	airlbs_project_key = true,
+	airlbs_timeout = true,
+	temp_low = true,
+	temp_high = true,
+	temp_diff_high = true,
+	current_low = true,
+	current_high = true,
+	pressure_diff_low = true,
+	pressure_diff_high = true,
+	door_open_warn_ms = true,
+	alarm_sms_phone = true
+}
 
 return config
