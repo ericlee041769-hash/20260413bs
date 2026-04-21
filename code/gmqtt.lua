@@ -105,7 +105,7 @@ local function build_gateway_dp(cfg, snapshot)
 	temp2, humidity2 = extract_temp_humidity(snapshot, 1)
 
 	reply.temp = temp1
-	reply.door = snapshot and snapshot.door_open and true or false
+	reply.door = snapshot and not snapshot.door_open or false
 	reply.humidity = humidity1
 	reply.err = snapshot and snapshot.err and true or false
 	reply.time = snapshot and snapshot.timestamp or ""

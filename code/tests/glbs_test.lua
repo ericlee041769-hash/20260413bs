@@ -2,11 +2,26 @@ local request_calls = {}
 local request_results = {}
 local error_logs = {}
 local current_time = 100
+local network_ready = true
+local wait_calls = {}
+local sntp_calls = 0
 
 local function assert_equal(actual, expected, message)
 	if actual ~= expected then
 		error(string.format("%s: expected %s, got %s", message, tostring(expected), tostring(actual)))
 	end
+end
+
+local function count_wait_event(event_name)
+	local count = 0
+
+	for i = 1, #wait_calls do
+		if wait_calls[i].event_name == event_name then
+			count = count + 1
+		end
+	end
+
+	return count
 end
 
 local function assert_true(value, message)
@@ -35,6 +50,36 @@ _G.airlbs = {
 			table.remove(request_results, 1)
 		end
 		return next_result[1], next_result[2]
+	end
+}
+
+_G.sys = {
+	waitUntil = function(event_name, timeout_ms)
+		wait_calls[#wait_calls + 1] = {
+			event_name = event_name,
+			timeout_ms = timeout_ms
+		}
+		if event_name == "IP_READY" then
+			network_ready = true
+			return true
+		end
+		return false
+	end
+}
+
+_G.socket = {
+	dft = function()
+		return 1
+	end,
+	adapter = function()
+		if network_ready then
+			return {}
+		end
+		return nil
+	end,
+	sntp = function()
+		sntp_calls = sntp_calls + 1
+		return true
 	end
 }
 
@@ -73,6 +118,9 @@ request_results = {
 }
 error_logs = {}
 current_time = 100
+network_ready = true
+wait_calls = {}
+sntp_calls = 0
 
 assert_true(
 	glbs.init({
@@ -123,5 +171,24 @@ local first_failure_location = glbs.get_location()
 assert_location(first_failure_location, 0, 0, "first failure without cache should return zero")
 assert_equal(#request_calls, 1, "first failure should still attempt request")
 assert_equal(request_calls[1].timeout, 10000, "default timeout should be 10000")
+
+assert_true(glbs.init({ project_id = "demo_project", project_key = "demo_key", timeout = 15000 }), "init for network wait and payload parse")
+request_calls = {}
+request_results = {
+	{ true, { location = "121.5423279,31.1354542" } }
+}
+error_logs = {}
+current_time = 400
+network_ready = false
+wait_calls = {}
+sntp_calls = 0
+
+local parsed_location = glbs.get_location()
+assert_location(parsed_location, 31.1354542, 121.5423279, "string location payload should be parsed")
+assert_equal(count_wait_event("IP_READY"), 1, "location request should wait for IP_READY when network is not ready")
+assert_equal(wait_calls[1].event_name, "IP_READY", "wait should subscribe to IP_READY")
+assert_equal(wait_calls[1].timeout_ms, 1000, "wait should poll IP_READY every second")
+assert_equal(sntp_calls, 1, "location request should trigger sntp once after network becomes ready")
+assert_equal(#request_calls, 1, "parsed location should still issue exactly one request")
 
 print("glbs_test.lua: PASS")
