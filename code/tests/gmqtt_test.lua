@@ -74,14 +74,15 @@ local env = {
 			if payload == "get_payload" then
 				return {
 					messageId = "get-1",
-					dp = { "sample_interval_ms", "latest" }
+					dp = { "sample_interval_ms", "temp_diff_high", "alarm_sms_phone", "latest" }
 				}
 			end
 			if payload == "set_payload" then
 				return {
 					messageId = "set-1",
 					dp = {
-						report_interval_ms = 15000
+						report_interval_ms = 15000,
+						alarm_sms_phone = "13800138000"
 					}
 				}
 			end
@@ -108,7 +109,9 @@ local fake_app_config = {
 	get = function()
 		return {
 			sample_interval_ms = 10000,
-			report_interval_ms = 10000
+			report_interval_ms = 10000,
+			temp_diff_high = 5,
+			alarm_sms_phone = "15025376653"
 		}
 	end,
 	update = function(changes)
@@ -140,10 +143,13 @@ assert(published_dp[1].battery_mv == 3800, "published snapshot should use real d
 subscriptions["IOT_MQTT_RECV"]("get/topic", "get_payload", {})
 assert(get_replies[1].message_id == "get-1", "get reply message id")
 assert(get_replies[1].dp.sample_interval_ms == 10000, "get reply config value")
+assert(get_replies[1].dp.temp_diff_high == 5, "get reply temp diff threshold")
+assert(get_replies[1].dp.alarm_sms_phone == "15025376653", "get reply sms phone")
 assert(get_replies[1].dp.latest.timestamp == "2026-04-21 12:00:00", "get reply latest snapshot")
 
 subscriptions["IOT_MQTT_RECV"]("set/topic", "set_payload", {})
 assert(set_replies[1].message_id == "set-1", "set reply message id")
 assert(set_replies[1].dp.report_interval_ms == 15000, "set reply applied value")
+assert(set_replies[1].dp.alarm_sms_phone == "13800138000", "set reply sms phone")
 
 print("gmqtt_test.lua: PASS")
