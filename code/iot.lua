@@ -3,6 +3,7 @@ local iot = {}
 local mqtt_client = nil
 local mqtt_cfg = nil
 local is_inited = false
+local pending_messages = {}
 
 local EVT_RECV = "IOT_MQTT_RECV"
 local EVT_CONN = "IOT_MQTT_CONNECTED"
@@ -44,6 +45,14 @@ local function mqtt_cb(client, event, data, payload, metas)
 		log.info("iot.mqtt_cb", "mqtt connected")
 		subscribe_topics(client)
 		sys.publish(EVT_CONN)
+	elseif event == "sent" then
+		local pending = pending_messages[data]
+		if pending then
+			log.info("iot.mqtt_cb", "sent", data, pending.topic)
+			pending_messages[data] = nil
+		else
+			log.info("iot.mqtt_cb", "sent", data, "")
+		end
 	elseif event == "recv" then
 		-- 统一通过系统消息总线向外透传收到的主题和消息体
 		sys.publish(EVT_RECV, data, payload, metas)
@@ -127,12 +136,23 @@ function iot.ready()
 end
 
 function iot.publish(topic, data, qos, retain)
+	local msg_id
+
 	if not mqtt_client or not mqtt_client:ready() then
 		log.error("iot.publish", "mqtt not ready")
 		return nil
 	end
 	log.info("iot.publish", topic, data)
-	return mqtt_client:publish(topic, data, qos or 0, retain or 0)
+	msg_id = mqtt_client:publish(topic, data, qos or 0, retain or 0)
+	if msg_id then
+		pending_messages[msg_id] = {
+			topic = topic
+		}
+		log.info("iot.publish", "queued", topic, msg_id)
+	else
+		log.error("iot.publish", "publish failed", topic)
+	end
+	return msg_id
 end
 
 -- 按平台指定格式上报DP数据。
@@ -186,6 +206,7 @@ function iot.publish_dp(temp, fanSpeed, door, humidity, err, time)
 	end
 
 	local payload = {
+		deviceId = mqtt_cfg.clientId,
 		dp = dp
 	}
 

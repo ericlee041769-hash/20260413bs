@@ -1,6 +1,26 @@
 local published_calls = {}
 local encoded_payload = nil
 local infos = {}
+local mqtt_callback = nil
+
+local function find_info_log(...)
+	local expected = { ... }
+
+	for i = 1, #infos do
+		local matched = true
+		for j = 1, #expected do
+			if infos[i][j] ~= expected[j] then
+				matched = false
+				break
+			end
+		end
+		if matched then
+			return infos[i]
+		end
+	end
+
+	return nil
+end
 
 local fake_client = {
 	ready = function()
@@ -20,7 +40,9 @@ local fake_client = {
 	auth = function()
 		return true
 	end,
-	on = function() end,
+	on = function(_, cb)
+		mqtt_callback = cb
+	end,
 	connect = function()
 		return true
 	end
@@ -81,13 +103,16 @@ assert(iot.publish_dp({
 	temp = 25.2,
 	door = false
 }), "publish_dp should succeed")
-assert(encoded_payload.deviceId == nil, "direct dp/post should omit deviceId")
+assert(encoded_payload.deviceId == "demo-device", "direct dp/post should include deviceId")
 assert(encoded_payload.dp.temp == 25.2, "encoded dp should keep temp")
 assert(encoded_payload.dp.door == false, "encoded dp should keep door")
 assert(published_calls[1].topic == "/demo/post", "publish topic should match config")
-assert(infos[#infos][1] == "iot.publish", "publish should log actual mqtt upload")
-assert(infos[#infos][2] == "/demo/post", "publish log should include topic")
-assert(infos[#infos][3] == "encoded", "publish log should include body")
+assert(find_info_log("iot.publish", "/demo/post", "encoded") ~= nil, "publish should log actual mqtt upload")
+assert(find_info_log("iot.publish", "queued", "/demo/post", 1) ~= nil, "publish should log queued message id")
+
+assert(type(mqtt_callback) == "function", "mqtt callback should be registered")
+mqtt_callback(fake_client, "sent", 1, nil, nil)
+assert(find_info_log("iot.mqtt_cb", "sent", 1, "/demo/post") ~= nil, "sent callback should log matching topic")
 
 assert(iot.publish_get_reply("mid-1", true, {
 	config = {
