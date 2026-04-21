@@ -1,6 +1,7 @@
 local calls = {}
 local errors = {}
 local infos = {}
+local published = {}
 
 _G.gpio = {
 	WAKEUP0 = 101,
@@ -40,7 +41,13 @@ _G.log = {
 }
 
 _G.sys = {
-	wait = function() end
+	wait = function() end,
+	publish = function(name, ...)
+		published[#published + 1] = {
+			name = name,
+			args = { ... }
+		}
+	end
 }
 
 local function assert_equal(actual, expected, message)
@@ -65,6 +72,7 @@ local function clear_records()
 	calls = {}
 	errors = {}
 	infos = {}
+	published = {}
 end
 
 local module_loader, load_err = loadfile("ggpio.lua")
@@ -112,6 +120,10 @@ assert_equal(infos[1][2], "门磁触发", "wakeup0 log message")
 assert_equal(infos[1][3], gpio.WAKEUP0, "wakeup0 log pin")
 assert_equal(infos[1][4], 0, "wakeup0 log level")
 assert_equal(infos[1][5], "关闭", "wakeup0 log door state")
+assert_equal(#published, 1, "wakeup0 callback should publish one edge event")
+assert_equal(published[1].name, "APP_DOOR_EDGE", "wakeup0 callback should publish door edge event")
+assert_equal(published[1].args[1], gpio.WAKEUP0, "wakeup0 event should publish pin")
+assert_equal(published[1].args[2], 0, "wakeup0 event should publish level")
 assert_false(io_ctrl.get_door_state(), "door state should become closed after low level callback")
 
 clear_records()
@@ -121,6 +133,9 @@ assert_equal(#infos, 1, "second wakeup0 callback should log once")
 assert_equal(infos[1][2], "门磁触发", "second wakeup0 log message")
 assert_equal(infos[1][4], 1, "second wakeup0 log level")
 assert_equal(infos[1][5], "打开", "second wakeup0 log door state")
+assert_equal(#published, 1, "second wakeup0 callback should publish one edge event")
+assert_equal(published[1].name, "APP_DOOR_EDGE", "second wakeup0 callback should publish door edge event")
+assert_equal(published[1].args[2], 1, "second wakeup0 event should publish level")
 assert_true(io_ctrl.get_door_state(), "door state should become open after high level callback")
 
 clear_records()
