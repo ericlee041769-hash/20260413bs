@@ -49,12 +49,10 @@ local function is_ok(entry)
 	return type(entry) == "table" and entry.ok == true
 end
 
-local function build_segments(snapshot, values, new_alarm_map)
-	local segments = {}
-
+local function append_alarm_segments(segments, values, alarm_map)
 	for i = 1, #ALARM_ORDER do
 		local key = ALARM_ORDER[i]
-		if new_alarm_map[key] then
+		if alarm_map[key] then
 			if key == "door_open_timeout" then
 				segments[#segments + 1] = "门持续打开超时"
 			elseif key == "temp1_low" then
@@ -76,13 +74,27 @@ local function build_segments(snapshot, values, new_alarm_map)
 			end
 		end
 	end
+end
 
+local function build_alarm_details(values, alarm_map)
+	local segments = {}
+
+	append_alarm_segments(segments, values, alarm_map)
 	if #segments == 0 then
 		return ""
 	end
 
-	segments[#segments + 1] = "时间=" .. tostring(snapshot.timestamp or "")
-	return "告警:" .. table.concat(segments, "; ")
+	return table.concat(segments, "; ")
+end
+
+local function build_segments(snapshot, values, new_alarm_map)
+	local details = build_alarm_details(values, new_alarm_map)
+
+	if details == "" then
+		return ""
+	end
+
+	return "告警:" .. details .. "; 时间=" .. tostring(snapshot.timestamp or "")
 end
 
 local function join_alarm_keys(active_map)
@@ -180,6 +192,7 @@ function app_alarm.evaluate(cfg, snapshot, runtime, now_ms)
 		active_map = clone_table(active_map),
 		new_alarm_keys = new_alarm_keys,
 		should_send_sms = #new_alarm_keys > 0,
+		err_text = next(active_map) ~= nil and build_alarm_details(values, active_map) or "正常",
 		sms_text = build_segments(snapshot or {}, values, new_alarm_map),
 		runtime = {
 			active_map = clone_table(active_map),

@@ -89,6 +89,7 @@ local fake_modules = {
 				active_map = {},
 				new_alarm_keys = {},
 				should_send_sms = false,
+				err_text = "正常",
 				sms_text = "",
 				runtime = runtime or {
 					active_map = {},

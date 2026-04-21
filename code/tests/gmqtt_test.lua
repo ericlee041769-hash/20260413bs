@@ -184,7 +184,7 @@ local fake_app_state = {
 			timestamp = "2026-04-21 12:00:00",
 			timestamp_ms = 1776744000000.0,
 			door_open = true,
-			err = true,
+			err = "门持续打开超时; 压差异常=0.7",
 			location = { 31.1354542, 121.5423279 },
 			pressure = {
 				[1] = { ok = true, pressure = 100.0 },
@@ -215,7 +215,7 @@ assert(gmqtt.publish_snapshot({
 	timestamp = "2026-04-21 12:00:00",
 	timestamp_ms = 1776744000000.0,
 	door_open = true,
-	err = true,
+	err = "门持续打开超时; 压差异常=0.7",
 	location = { 31.1354542, 121.5423279 },
 	pressure = {
 		[1] = { ok = true, pressure = 100.0 },
@@ -231,7 +231,7 @@ assert(published_dp[1].humidity == 50.1, "published dp should expose humidity")
 assert(published_dp[1].temp2 == 26.8, "published dp should expose temp2")
 assert(published_dp[1].humidity2 == 60.3, "published dp should expose humidity2")
 assert(published_dp[1].door == false, "published dp should invert door state for gateway upload")
-assert(published_dp[1].err == true, "published dp should expose err")
+assert(published_dp[1].err == "门持续打开超时; 压差异常=0.7", "published dp should expose err text")
 assert(published_dp[1].time == "2026-04-21 12:00:00", "published dp should expose gateway date string")
 assert(published_dp[1].tempdiff == 1.6, "published dp should expose tempdiff")
 assert(published_dp[1].lpoint == "31.1354542,121.5423279", "published dp should expose lpoint")
@@ -258,7 +258,7 @@ assert(get_replies[1].dp.humidity == 50.1, "get reply should expose humidity")
 assert(get_replies[1].dp.temp2 == 26.8, "get reply should expose temp2")
 assert(get_replies[1].dp.humidity2 == 60.3, "get reply should expose humidity2")
 assert(get_replies[1].dp.door == false, "get reply should invert door state for gateway upload")
-assert(get_replies[1].dp.err == true, "get reply should expose err")
+assert(get_replies[1].dp.err == "门持续打开超时; 压差异常=0.7", "get reply should expose err text")
 assert(get_replies[1].dp.time == "2026-04-21 12:00:00", "get reply should expose gateway date string")
 assert(get_replies[1].dp.tempdiff == 1.6, "get reply should expose tempdiff")
 assert(get_replies[1].dp.lpoint == "31.1354542,121.5423279", "get reply should expose lpoint")
