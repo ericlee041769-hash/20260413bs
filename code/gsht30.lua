@@ -10,6 +10,14 @@ local managed_buses = {
 	gsht30.I2C1
 }
 
+local function to_decimal_tenths(value)
+	if type(value) ~= "number" then
+		return value
+	end
+
+	return value / 10
+end
+
 local function is_valid_bus(id)
 	return id == gsht30.I2C0 or id == gsht30.I2C1
 end
@@ -55,10 +63,11 @@ function gsht30.read(id, addr)
 
 	ok, humidity, temperature = i2c.readSHT30(id, device_addr)
 	if ok or addr ~= nil then
-		return ok, humidity, temperature
+		return ok, to_decimal_tenths(humidity), to_decimal_tenths(temperature)
 	end
 
-	return i2c.readSHT30(id, gsht30.ALT_ADDR)
+	ok, humidity, temperature = i2c.readSHT30(id, gsht30.ALT_ADDR)
+	return ok, to_decimal_tenths(humidity), to_decimal_tenths(temperature)
 end
 
 function gsht30.read_all(addr)

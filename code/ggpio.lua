@@ -4,6 +4,7 @@ io_ctrl.GPIO_ADC_EN = 24
 io_ctrl.GPIO_3V3_EN = 25
 io_ctrl.GPIO_5V_EN = 27
 io_ctrl.GPIO_28 = 28
+io_ctrl.GPIO21_VBUS = 21
 io_ctrl.WAKEUP0_DOOR = gpio.WAKEUP0
 
 local managed_pins = {
@@ -23,6 +24,7 @@ local managed_pin_set = {
 local pin_levels = {}
 local door_open = false
 local door_input_reader = nil
+local vbus_input_reader = nil
 local DOOR_EDGE_EVENT = "APP_DOOR_EDGE"
 
 local function normalize_level(level)
@@ -64,6 +66,12 @@ local function setup_wakeup0()
 	log_info("ggpio", "门磁初始化", io_ctrl.WAKEUP0_DOOR, door_open and "打开" or "关闭")
 end
 
+local function setup_vbus_detect()
+	local pulldown = gpio.PULLDOWN
+	vbus_input_reader = gpio.setup(io_ctrl.GPIO21_VBUS, nil, pulldown)
+	log_info("ggpio", "VBUS检测初始化", io_ctrl.GPIO21_VBUS)
+end
+
 function io_ctrl.init()
 	for i = 1, #managed_pins do
 		local pin = managed_pins[i]
@@ -71,6 +79,7 @@ function io_ctrl.init()
 		gpio.set(pin, 1)
 		pin_levels[pin] = 1
 	end
+	setup_vbus_detect()
 	setup_wakeup0()
 	return true
 end
@@ -119,6 +128,14 @@ function io_ctrl.get_door_state()
 		door_open = door_state_from_level(door_input_reader())
 	end
 	return door_open
+end
+
+function io_ctrl.get_usb_power_state()
+	if type(vbus_input_reader) ~= "function" then
+		return nil
+	end
+
+	return normalize_level(vbus_input_reader()) ~= 0
 end
 
 return io_ctrl
