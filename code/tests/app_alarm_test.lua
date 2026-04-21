@@ -80,25 +80,17 @@ assert_equal(#first.new_alarm_keys, 5, "should report five new alarms")
 assert_equal(first.sms_text,
 	"告警:门持续打开超时; 温度1高温=86.2; 温差异常=6.2; 电流高=53000; 压差异常=0.7; 时间=2026-04-21 16:00:00",
 	"merged sms text should be stable")
-assert_equal(first.err_text,
-	"门持续打开超时; 温度1高温=86.2; 温差异常=6.2; 电流高=53000; 压差异常=0.7",
-	"active alarm text should describe current causes")
 
 local second = app_alarm.evaluate(cfg, alarm_snapshot, first.runtime, 8000)
 assert_false(second.should_send_sms, "same active alarm should not resend")
 assert_equal(second.sms_text, "", "no resend should produce empty sms text")
-assert_equal(second.err_text,
-	"门持续打开超时; 温度1高温=86.2; 温差异常=6.2; 电流高=53000; 压差异常=0.7",
-	"active alarm text should stay available during sustained alarm")
 
 local recovered = app_alarm.evaluate(cfg, healthy_snapshot, second.runtime, 9000)
 assert_false(recovered.should_send_sms, "recovery should not send sms")
 assert_equal(next(recovered.active_map), nil, "recovery should clear active alarms")
-assert_equal(recovered.err_text, "正常", "recovery should report normal status")
 
 local third = app_alarm.evaluate(cfg, alarm_snapshot, recovered.runtime, 16000)
 assert_true(third.should_send_sms, "alarm should resend after recovery")
 assert_contains(third.sms_text, "温度1高温=86.2", "retrigger sms should include temp segment")
-assert_contains(third.err_text, "温度1高温=86.2", "retrigger err text should include temp segment")
 
 print("app_alarm_test.lua: PASS")

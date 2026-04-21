@@ -131,22 +131,6 @@ local function to_gateway_time(snapshot)
 	return ""
 end
 
-local function to_gateway_err(snapshot)
-	if type(snapshot) ~= "table" then
-		return "正常"
-	end
-
-	if type(snapshot.err) == "string" and snapshot.err ~= "" then
-		return snapshot.err
-	end
-
-	if snapshot.err == true then
-		return "告警"
-	end
-
-	return "正常"
-end
-
 local function build_runtime_config_payload(cfg)
 	local reply = {}
 	local allowed_fields = gateway_config_fields()
@@ -190,7 +174,7 @@ local function build_gateway_dp(cfg, snapshot)
 	reply.temp = temp1
 	reply.door = snapshot and not snapshot.door_open or false
 	reply.humidity = humidity1
-	reply.err = to_gateway_err(snapshot)
+	reply.err = snapshot and snapshot.err and true or false
 	reply.time = to_gateway_time(snapshot)
 	reply.temp2 = temp2
 	reply.humidity2 = humidity2

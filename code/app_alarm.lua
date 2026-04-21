@@ -192,7 +192,6 @@ function app_alarm.evaluate(cfg, snapshot, runtime, now_ms)
 		active_map = clone_table(active_map),
 		new_alarm_keys = new_alarm_keys,
 		should_send_sms = #new_alarm_keys > 0,
-		err_text = next(active_map) ~= nil and build_alarm_details(values, active_map) or "正常",
 		sms_text = build_segments(snapshot or {}, values, new_alarm_map),
 		runtime = {
 			active_map = clone_table(active_map),
