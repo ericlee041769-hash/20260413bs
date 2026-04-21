@@ -213,10 +213,12 @@ assert(string.find(err, "stop-loop", 1, true), "collection loop should stop via 
 
 assert(saved_latest ~= nil, "latest snapshot should be saved")
 assert(saved_latest.timestamp == "2026-04-21 16:00:00", "saved latest snapshot should use collected data")
+assert(saved_latest.err == true, "saved latest snapshot should include err flag")
 assert(#alarm_calls == 1, "application should evaluate alarms once")
 assert(#sms_calls == 1, "application should send sms when a new alarm appears")
 assert(sms_calls[1].phone == "15025376653", "sms should use configured phone")
 assert(#published_snapshots == 1, "mqtt publish should continue after sms failure")
 assert(published_snapshots[1].timestamp == "2026-04-21 16:00:00", "published snapshot should match collected data")
+assert(published_snapshots[1].err == true, "published snapshot should include err flag")
 
 print("application_test.lua: PASS")

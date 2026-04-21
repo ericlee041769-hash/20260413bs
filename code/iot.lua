@@ -185,7 +185,6 @@ function iot.publish_dp(temp, fanSpeed, door, humidity, err, time)
 	end
 
 	local payload = {
-		deviceId = mqtt_cfg.clientId,
 		dp = dp
 	}
 

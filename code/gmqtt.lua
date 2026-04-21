@@ -61,10 +61,69 @@ local function current_latest()
 	return nil
 end
 
+local function extract_temp_humidity(snapshot, index)
+	local entry = snapshot and snapshot.temp_hum and snapshot.temp_hum[index]
+	if type(entry) ~= "table" or entry.ok ~= true then
+		return nil, nil
+	end
+
+	return entry.temperature, entry.humidity
+end
+
+local function format_location(location)
+	local lat = 0
+	local lng = 0
+
+	if type(location) == "table" then
+		lat = location[1] or 0
+		lng = location[2] or 0
+	end
+
+	return tostring(lat) .. "," .. tostring(lng)
+end
+
+local function round_one_decimal(value)
+	if type(value) ~= "number" then
+		return value
+	end
+
+	if value >= 0 then
+		return math.floor(value * 10 + 0.5) / 10
+	end
+
+	return math.ceil(value * 10 - 0.5) / 10
+end
+
+local function build_gateway_dp(cfg, snapshot)
+	local temp1
+	local humidity1
+	local temp2
+	local humidity2
+	local reply = {}
+
+	temp1, humidity1 = extract_temp_humidity(snapshot, 0)
+	temp2, humidity2 = extract_temp_humidity(snapshot, 1)
+
+	reply.temp = temp1
+	reply.door = snapshot and snapshot.door_open and true or false
+	reply.humidity = humidity1
+	reply.err = snapshot and snapshot.err and true or false
+	reply.time = snapshot and snapshot.timestamp or ""
+	reply.phonenum = cfg and cfg.alarm_sms_phone or ""
+	reply.temp2 = temp2
+	reply.humidity2 = humidity2
+	reply.lpoint = format_location(snapshot and snapshot.location)
+
+	if type(temp1) == "number" and type(temp2) == "number" then
+		reply.tempdiff = round_one_decimal(math.abs(temp2 - temp1))
+	end
+
+	return reply
+end
+
 local function build_get_reply_dp(keys)
 	local reply = {}
-	local cfg = current_config()
-	local latest = current_latest()
+	local gateway_dp = build_gateway_dp(current_config(), current_latest())
 
 	if type(keys) ~= "table" then
 		return reply
@@ -72,10 +131,8 @@ local function build_get_reply_dp(keys)
 
 	for i = 1, #keys do
 		local key = keys[i]
-		if key == "latest" then
-			reply.latest = latest
-		elseif cfg[key] ~= nil then
-			reply[key] = cfg[key]
+		if gateway_dp[key] ~= nil then
+			reply[key] = gateway_dp[key]
 		end
 	end
 
@@ -87,7 +144,21 @@ local function apply_set_dp(dp)
 		return {}
 	end
 
-	return app_config.update(dp)
+	if type(dp) ~= "table" then
+		return {}
+	end
+
+	local applied = app_config.update({
+		alarm_sms_phone = dp.phonenum
+	})
+
+	if type(applied.alarm_sms_phone) == "string" then
+		return {
+			phonenum = applied.alarm_sms_phone
+		}
+	end
+
+	return {}
 end
 
 local function register_mqtt_receive_handler()
@@ -158,8 +229,10 @@ function gmqtt.publish_snapshot(snapshot)
 		return false
 	end
 
-	log.info("gmqtt", "准备上报采集快照", safe_json_encode(snapshot))
-	if iot.publish_dp(snapshot) then
+	local gateway_dp = build_gateway_dp(current_config(), snapshot)
+
+	log.info("gmqtt", "准备上报采集快照", safe_json_encode(gateway_dp))
+	if iot.publish_dp(gateway_dp) then
 		log.info("gmqtt", "采集快照上报请求已提交")
 		return true
 	end
