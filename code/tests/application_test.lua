@@ -140,6 +140,7 @@ local fake_app_alarm = {
 				},
 				new_alarm_keys = already_active and {} or { "door_open_timeout" },
 				should_send_sms = not already_active,
+				err_text = "门持续打开超时",
 				sms_text = "告警:门持续打开超时; 时间=2026-04-21 16:00:00",
 				runtime = {
 					active_map = {
@@ -154,6 +155,7 @@ local fake_app_alarm = {
 			active_map = {},
 			new_alarm_keys = {},
 			should_send_sms = false,
+			err_text = "正常",
 			sms_text = "",
 			runtime = {
 				active_map = {},
@@ -311,13 +313,13 @@ assert(saved_latest ~= nil, "latest snapshot should be saved")
 assert(saved_latest.timestamp == "2026-04-21 16:00:00", "saved latest snapshot should use collected data")
 assert(saved_latest.temp_hum[0].temperature == 66.2, "saved latest snapshot should use processed temperature")
 assert(saved_latest.current_sensor_mv == 50000, "saved latest snapshot should use processed current")
-assert(saved_latest.err == false, "periodic latest snapshot should include err flag")
+assert(saved_latest.err == "正常", "periodic latest snapshot should include normal err text")
 assert(#algorithm_calls == 1, "application should apply algorithm once in periodic flow")
 assert(#alarm_calls == 1, "application should evaluate alarms once")
 assert(#sms_calls == 0, "periodic flow should not send sms without new alarm")
 assert(#published_snapshots == 1, "periodic flow should publish once")
 assert(published_snapshots[1].temp_hum[0].temperature == 66.2, "published snapshot should use processed temperature")
-assert(published_snapshots[1].err == false, "periodic published snapshot should include err flag")
+assert(published_snapshots[1].err == "正常", "periodic published snapshot should include normal err text")
 
 subscriptions["APP_DOOR_EDGE"](101, 1)
 assert(#task_queue == 2, "door edge should create one debounce task")
@@ -332,7 +334,7 @@ assert(#alarm_calls == 2, "door timeout flow should evaluate alarms again")
 assert(#sms_calls == 1, "door timeout should trigger immediate sms once")
 assert(sms_calls[1].phone == "15025376653", "door timeout sms should use configured phone")
 assert(#published_snapshots == 2, "door timeout should trigger immediate upload")
-assert(published_snapshots[2].err == true, "door timeout upload should include err flag")
+assert(published_snapshots[2].err == "门持续打开超时", "door timeout upload should include alarm err text")
 assert(wait_calls[1] == 10000, "usb mode should wait the usb sample interval")
 assert(pm_sleep_calls == 0, "usb mode should not sleep")
 

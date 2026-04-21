@@ -45,7 +45,7 @@ end
 local cfg = {
 	usb_interval_ms = 10000,
 	battery_interval_ms = 60000,
-	battery_prewake_ms = 5000
+	battery_prewake_ms = 8000
 }
 
 local loader, load_err = loadfile("app_power.lua")
@@ -65,7 +65,7 @@ end
 local battery_profile = app_power.current_profile(cfg)
 assert_equal(battery_profile.mode, "BATTERY", "vbus low should select battery mode")
 assert_equal(battery_profile.interval_ms, 60000, "battery interval")
-assert_equal(battery_profile.prewake_ms, 5000, "battery prewake")
+assert_equal(battery_profile.prewake_ms, 5000, "battery prewake should stay fixed at 5s")
 assert_true(app_power.should_sleep_after_cycle(cfg), "battery mode should sleep after cycle")
 assert_equal(app_power.next_wakeup_delay_ms(cfg), 55000, "battery next wakeup should subtract prewake")
 

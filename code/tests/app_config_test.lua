@@ -20,7 +20,6 @@ local fake_config = {
 	RUNTIME_DEFAULTS = {
 		usb_interval_ms = 10000,
 		battery_interval_ms = 60000,
-		battery_prewake_ms = 5000,
 		airlbs_project_id = "lvU4QJ",
 		airlbs_project_key = "hbHtgCRY8OUvCqEC3NEyLZb5CS0w7oHV",
 		airlbs_timeout = 10000,
@@ -37,7 +36,6 @@ local fake_config = {
 	RUNTIME_FIELD_TYPES = {
 		usb_interval_ms = "number",
 		battery_interval_ms = "number",
-		battery_prewake_ms = "number",
 		airlbs_project_id = "string",
 		airlbs_project_key = "string",
 		airlbs_timeout = "number",
@@ -54,7 +52,6 @@ local fake_config = {
 	RUNTIME_MUTABLE_FIELDS = {
 		usb_interval_ms = true,
 		battery_interval_ms = true,
-		battery_prewake_ms = true,
 		airlbs_project_id = true,
 		airlbs_project_key = true,
 		airlbs_timeout = true,
@@ -104,7 +101,7 @@ local app_config = config_loader()
 local cfg = app_config.load()
 assert_equal(cfg.usb_interval_ms, 10000, "default usb interval")
 assert_equal(cfg.battery_interval_ms, 60000, "default battery interval")
-assert_equal(cfg.battery_prewake_ms, 5000, "default battery prewake")
+assert_nil(cfg.battery_prewake_ms, "fixed battery prewake should not live in runtime config")
 assert_equal(cfg.airlbs_project_id, "lvU4QJ", "default airlbs project id")
 assert_equal(cfg.airlbs_project_key, "hbHtgCRY8OUvCqEC3NEyLZb5CS0w7oHV", "default airlbs project key")
 assert_equal(cfg.airlbs_timeout, 10000, "default airlbs timeout")
@@ -148,7 +145,7 @@ local updated = app_config.update({
 })
 assert_equal(updated.usb_interval_ms, 15000, "updated usb interval")
 assert_equal(updated.battery_interval_ms, 75000, "updated battery interval")
-assert_equal(updated.battery_prewake_ms, 8000, "updated battery prewake")
+assert_nil(updated.battery_prewake_ms, "fixed battery prewake should ignore cloud update")
 assert_equal(updated.temp_high, 60, "updated temp high")
 assert_equal(updated.temp_diff_high, 6, "updated temp diff high")
 assert_equal(updated.alarm_sms_phone, "13800138000", "updated alarm sms phone")
@@ -159,7 +156,7 @@ assert_nil(updated.MQTT, "static config should not be mutable")
 local reloaded = app_config.load()
 assert_equal(reloaded.usb_interval_ms, 15000, "persisted usb interval")
 assert_equal(reloaded.battery_interval_ms, 75000, "persisted battery interval")
-assert_equal(reloaded.battery_prewake_ms, 8000, "persisted battery prewake")
+assert_nil(reloaded.battery_prewake_ms, "fixed battery prewake should not persist in runtime config")
 assert_equal(reloaded.temp_high, 60, "persisted temp high")
 assert_equal(reloaded.current_low, 0, "invalid current low should not persist")
 assert_equal(reloaded.temp_diff_high, 6, "persisted temp diff high")

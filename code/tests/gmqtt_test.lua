@@ -24,7 +24,6 @@ local fake_config = {
 	GATEWAY_CONFIG_FIELDS = {
 		usb_interval_ms = true,
 		battery_interval_ms = true,
-		battery_prewake_ms = true,
 		temp_low = true,
 		temp_high = true,
 		temp_diff_high = true,
@@ -98,7 +97,8 @@ local env = {
 						config = {
 							alarm_sms_phone = "13800138000",
 							usb_interval_ms = 15000,
-							battery_interval_ms = 90000
+							battery_interval_ms = 90000,
+							battery_prewake_ms = 12000
 						},
 						temp = 99.9
 					}
@@ -231,7 +231,7 @@ assert(published_dp[1].humidity == 50.1, "published dp should expose humidity")
 assert(published_dp[1].temp2 == 26.8, "published dp should expose temp2")
 assert(published_dp[1].humidity2 == 60.3, "published dp should expose humidity2")
 assert(published_dp[1].door == false, "published dp should invert door state for gateway upload")
-assert(published_dp[1].err == true, "published dp should expose err")
+assert(published_dp[1].err == "门持续打开超时; 压差异常=0.7", "published dp should expose err text")
 assert(published_dp[1].time == "2026-04-21 12:00:00", "published dp should expose gateway date string")
 assert(published_dp[1].tempdiff == 1.6, "published dp should expose tempdiff")
 assert(published_dp[1].lpoint == "31.1354542,121.5423279", "published dp should expose lpoint")
@@ -242,7 +242,7 @@ assert(type(published_dp[1].config) == "table", "published dp should expose conf
 assert(published_dp[1].config.alarm_sms_phone == "15025376653", "published dp config should expose alarm sms phone")
 assert(published_dp[1].config.usb_interval_ms == 10000, "published dp config should expose usb interval")
 assert(published_dp[1].config.battery_interval_ms == 60000, "published dp config should expose battery interval")
-assert(published_dp[1].config.battery_prewake_ms == 5000, "published dp config should expose battery prewake")
+assert(published_dp[1].config.battery_prewake_ms == nil, "published dp config should exclude fixed battery prewake")
 assert(published_dp[1].config.airlbs_project_id == nil, "published dp config should exclude airlbs project id")
 
 subscriptions["IOT_MQTT_DISCONNECTED"](-1)
@@ -258,7 +258,7 @@ assert(get_replies[1].dp.humidity == 50.1, "get reply should expose humidity")
 assert(get_replies[1].dp.temp2 == 26.8, "get reply should expose temp2")
 assert(get_replies[1].dp.humidity2 == 60.3, "get reply should expose humidity2")
 assert(get_replies[1].dp.door == false, "get reply should invert door state for gateway upload")
-assert(get_replies[1].dp.err == true, "get reply should expose err")
+assert(get_replies[1].dp.err == "门持续打开超时; 压差异常=0.7", "get reply should expose err text")
 assert(get_replies[1].dp.time == "2026-04-21 12:00:00", "get reply should expose gateway date string")
 assert(get_replies[1].dp.tempdiff == 1.6, "get reply should expose tempdiff")
 assert(get_replies[1].dp.lpoint == "31.1354542,121.5423279", "get reply should expose lpoint")
@@ -269,7 +269,7 @@ assert(type(get_replies[1].dp.config) == "table", "get reply should expose confi
 assert(get_replies[1].dp.config.alarm_sms_phone == "15025376653", "get reply config should expose alarm sms phone")
 assert(get_replies[1].dp.config.usb_interval_ms == 10000, "get reply config should expose usb interval")
 assert(get_replies[1].dp.config.battery_interval_ms == 60000, "get reply config should expose battery interval")
-assert(get_replies[1].dp.config.battery_prewake_ms == 5000, "get reply config should expose battery prewake")
+assert(get_replies[1].dp.config.battery_prewake_ms == nil, "get reply config should exclude fixed battery prewake")
 assert(get_replies[1].dp.config.airlbs_project_id == nil, "get reply config should exclude airlbs project id")
 
 subscriptions["IOT_MQTT_RECV"]("set/topic", "set_payload", {})
@@ -278,6 +278,7 @@ assert(type(set_replies[1].dp.config) == "table", "set reply should return confi
 assert(set_replies[1].dp.config.alarm_sms_phone == "13800138000", "set reply config should echo accepted alarm sms phone")
 assert(set_replies[1].dp.config.usb_interval_ms == 15000, "set reply config should echo accepted usb interval")
 assert(set_replies[1].dp.config.battery_interval_ms == 90000, "set reply config should echo accepted battery interval")
+assert(set_replies[1].dp.config.battery_prewake_ms == nil, "set reply config should ignore fixed battery prewake")
 assert(set_replies[1].dp.temp == nil, "set reply should ignore readonly temp")
 
 subscriptions["IOT_MQTT_RECV"]("set/topic", "set_payload_readonly", {})
