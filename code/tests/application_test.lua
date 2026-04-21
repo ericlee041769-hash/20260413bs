@@ -12,6 +12,10 @@ local sms_ready = false
 local collect_calls = 0
 local wait_calls = {}
 local door_state = true
+local wakeup_calls = {}
+local pm_sleep_calls = 0
+
+local fake_pm = {}
 
 local fake_sys = {
 	taskInit = function(fn)
@@ -39,6 +43,11 @@ local function current_cfg()
 	return {
 		sample_interval_ms = 10000,
 		report_interval_ms = 10000,
+		usb_sample_interval_ms = 10000,
+		usb_report_interval_ms = 10000,
+		battery_sample_interval_ms = 60000,
+		battery_report_interval_ms = 60000,
+		battery_prewake_ms = 5000,
 		airlbs_project_id = "",
 		airlbs_project_key = "",
 		airlbs_timeout = 10000,
@@ -172,6 +181,28 @@ local fake_app_sms = {
 	end
 }
 
+local fake_app_power = {
+	current_profile = function(cfg)
+		return {
+			mode = "USB",
+			sample_interval_ms = cfg.usb_sample_interval_ms,
+			report_interval_ms = cfg.usb_report_interval_ms,
+			prewake_ms = 0
+		}
+	end,
+	should_sleep_after_cycle = function()
+		return false
+	end,
+	prepare_next_wakeup = function(cfg)
+		wakeup_calls[#wakeup_calls + 1] = cfg.battery_sample_interval_ms - cfg.battery_prewake_ms
+		return true
+	end,
+	enter_sleep = function()
+		pm_sleep_calls = pm_sleep_calls + 1
+		return true
+	end
+}
+
 local fake_ggpio = {
 	init = function()
 		return true
@@ -217,6 +248,7 @@ local fake_modules = {
 	app_algorithm = fake_app_algorithm,
 	app_alarm = fake_app_alarm,
 	app_sms = fake_app_sms,
+	app_power = fake_app_power,
 	ggpio = fake_ggpio,
 	gsht30 = fake_gsht30,
 	gbaro = fake_gbaro,
@@ -227,6 +259,7 @@ local fake_modules = {
 local env = {
 	_G = nil,
 	sys = fake_sys,
+	pm = fake_pm,
 	fskv = fake_fskv,
 	os = {
 		time = function()
@@ -256,6 +289,7 @@ assert(application.start(), "application should start")
 assert(required_modules.app_algorithm, "application should require app_algorithm")
 assert(required_modules.app_alarm, "application should require app_alarm")
 assert(required_modules.app_sms, "application should require app_sms")
+assert(required_modules.app_power, "application should require app_power")
 assert(fskv_init_calls == 1, "application should init fskv once")
 assert(gmqtt_services.app_config == fake_app_config, "gmqtt should receive app_config service")
 assert(gmqtt_services.app_state == fake_app_state, "gmqtt should receive app_state service")
@@ -295,5 +329,7 @@ assert(#sms_calls == 1, "door timeout should trigger immediate sms once")
 assert(sms_calls[1].phone == "15025376653", "door timeout sms should use configured phone")
 assert(#published_snapshots == 2, "door timeout should trigger immediate upload")
 assert(published_snapshots[2].err == true, "door timeout upload should include err flag")
+assert(wait_calls[1] == 10000, "usb mode should wait the usb sample interval")
+assert(pm_sleep_calls == 0, "usb mode should not sleep")
 
 print("application_test.lua: PASS")

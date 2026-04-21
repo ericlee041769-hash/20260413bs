@@ -5,11 +5,13 @@ local published = {}
 
 _G.gpio = {
 	WAKEUP0 = 101,
+	PULLDOWN = 202,
 	PULLUP = 201,
 	BOTH = 250,
 	FALLING = 301,
 	_input_levels = {
-		[101] = 0
+		[101] = 0,
+		[21] = 1
 	},
 	setup = function(pin, level, pull, irq)
 		calls[#calls + 1] = {
@@ -20,7 +22,7 @@ _G.gpio = {
 			irq = irq
 		}
 
-		if type(level) == "function" then
+		if type(level) == "function" or level == nil then
 			return function()
 				return gpio._input_levels[pin] or 0
 			end
@@ -83,6 +85,7 @@ assert_equal(io_ctrl.GPIO_ADC_EN, 24, "GPIO_ADC_EN constant")
 assert_equal(io_ctrl.GPIO_3V3_EN, 25, "GPIO_3V3_EN constant")
 assert_equal(io_ctrl.GPIO_5V_EN, 27, "GPIO_5V_EN constant")
 assert_equal(io_ctrl.GPIO_28, 28, "GPIO_28 constant")
+assert_equal(io_ctrl.GPIO21_VBUS, 21, "GPIO21_VBUS constant")
 
 clear_records()
 assert_true(io_ctrl.init(), "init return")
@@ -92,7 +95,7 @@ local expected_pins = {
 	io_ctrl.GPIO_5V_EN,
 	io_ctrl.GPIO_28
 }
-assert_equal(#calls, 9, "init call count")
+assert_equal(#calls, 10, "init call count")
 for i = 1, #expected_pins do
 	local setup_call = calls[(i - 1) * 2 + 1]
 	local set_call = calls[(i - 1) * 2 + 2]
@@ -103,13 +106,25 @@ for i = 1, #expected_pins do
 	assert_equal(set_call.pin, expected_pins[i], "set pin " .. i)
 	assert_equal(set_call.level, 1, "set level " .. i)
 end
-local wakeup_setup_call = calls[9]
+local vbus_setup_call = calls[9]
+assert_equal(vbus_setup_call.fn, "setup", "vbus setup function name")
+assert_equal(vbus_setup_call.pin, io_ctrl.GPIO21_VBUS, "vbus setup pin")
+assert_equal(vbus_setup_call.level, nil, "vbus setup should use input mode")
+assert_equal(vbus_setup_call.pull, gpio.PULLDOWN, "vbus setup pull mode")
+assert_equal(vbus_setup_call.irq, nil, "vbus setup irq mode")
+assert_true(io_ctrl.get_usb_power_state(), "initial vbus high should mean usb present")
+
+local wakeup_setup_call = calls[10]
 assert_equal(wakeup_setup_call.fn, "setup", "wakeup0 setup function name")
 assert_equal(wakeup_setup_call.pin, gpio.WAKEUP0, "wakeup0 setup pin")
 assert_equal(type(wakeup_setup_call.level), "function", "wakeup0 callback type")
 assert_equal(wakeup_setup_call.pull, gpio.PULLUP, "wakeup0 pull mode")
 assert_equal(wakeup_setup_call.irq, gpio.BOTH, "wakeup0 irq mode")
 assert_false(io_ctrl.get_door_state(), "initial door state should be closed")
+
+clear_records()
+gpio._input_levels[io_ctrl.GPIO21_VBUS] = 0
+assert_false(io_ctrl.get_usb_power_state(), "vbus low should mean battery mode")
 
 clear_records()
 gpio._input_levels[gpio.WAKEUP0] = 0

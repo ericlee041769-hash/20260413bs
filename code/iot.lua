@@ -131,6 +131,7 @@ function iot.publish(topic, data, qos, retain)
 		log.error("iot.publish", "mqtt not ready")
 		return nil
 	end
+	log.info("iot.publish", topic, data)
 	return mqtt_client:publish(topic, data, qos or 0, retain or 0)
 end
 

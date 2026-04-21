@@ -1,5 +1,6 @@
 local published_calls = {}
 local encoded_payload = nil
+local infos = {}
 
 local fake_client = {
 	ready = function()
@@ -42,7 +43,9 @@ local env = {
 		publish = function() end
 	},
 	log = {
-		info = function() end,
+		info = function(...)
+			infos[#infos + 1] = { ... }
+		end,
 		error = function() end
 	},
 	os = {
@@ -80,5 +83,8 @@ assert(encoded_payload.deviceId == nil, "direct dp/post should omit deviceId")
 assert(encoded_payload.dp.temp == 25.2, "encoded dp should keep temp")
 assert(encoded_payload.dp.door == false, "encoded dp should keep door")
 assert(published_calls[1].topic == "/demo/post", "publish topic should match config")
+assert(infos[#infos][1] == "iot.publish", "publish should log actual mqtt upload")
+assert(infos[#infos][2] == "/demo/post", "publish log should include topic")
+assert(infos[#infos][3] == "encoded", "publish log should include body")
 
 print("iot_test.lua: PASS")

@@ -1,7 +1,11 @@
 local calls = {}
 local errors = {}
+local infos = {}
 
 _G.log = {
+	info = function(...)
+		infos[#infos + 1] = { ... }
+	end,
 	error = function(...)
 		errors[#errors + 1] = { ... }
 	end
@@ -72,6 +76,7 @@ end
 local function clear_records()
 	calls = {}
 	errors = {}
+	infos = {}
 	i2c._exist_map[0] = true
 	i2c._exist_map[1] = true
 	i2c._setup_result[0] = 1
@@ -126,8 +131,8 @@ assert_equal(#errors, 1, "init setup fail log count")
 clear_records()
 local ok0, hum0, temp0 = gsht30.read(gsht30.I2C0)
 assert_true(ok0, "read i2c0 result")
-assert_equal(hum0, 501, "read i2c0 humidity")
-assert_equal(temp0, 252, "read i2c0 temperature")
+assert_equal(hum0, 50.1, "read i2c0 humidity")
+assert_equal(temp0, 25.2, "read i2c0 temperature")
 assert_equal(#calls, 1, "read i2c0 call count")
 assert_equal(calls[1].fn, "readSHT30", "read i2c0 fn")
 assert_equal(calls[1].id, gsht30.I2C0, "read i2c0 id")
@@ -152,8 +157,8 @@ i2c._read_result[1][0x44] = { false, nil, nil }
 i2c._read_result[1][0x45] = { true, 611, 271 }
 local fallback_ok, fallback_hum, fallback_temp = gsht30.read(gsht30.I2C1)
 assert_true(fallback_ok, "read fallback result")
-assert_equal(fallback_hum, 611, "read fallback humidity")
-assert_equal(fallback_temp, 271, "read fallback temperature")
+assert_equal(fallback_hum, 61.1, "read fallback humidity")
+assert_equal(fallback_temp, 27.1, "read fallback temperature")
 assert_equal(#calls, 2, "read fallback call count")
 assert_equal(calls[1].addr, 0x44, "read fallback first addr")
 assert_equal(calls[2].addr, 0x45, "read fallback second addr")
@@ -161,11 +166,11 @@ assert_equal(calls[2].addr, 0x45, "read fallback second addr")
 clear_records()
 local all = gsht30.read_all()
 assert_true(all[gsht30.I2C0].ok, "read_all i2c0 result")
-assert_equal(all[gsht30.I2C0].humidity, 501, "read_all i2c0 humidity")
-assert_equal(all[gsht30.I2C0].temperature, 252, "read_all i2c0 temperature")
+assert_equal(all[gsht30.I2C0].humidity, 50.1, "read_all i2c0 humidity")
+assert_equal(all[gsht30.I2C0].temperature, 25.2, "read_all i2c0 temperature")
 assert_true(all[gsht30.I2C1].ok, "read_all i2c1 result")
-assert_equal(all[gsht30.I2C1].humidity, 603, "read_all i2c1 humidity")
-assert_equal(all[gsht30.I2C1].temperature, 268, "read_all i2c1 temperature")
+assert_equal(all[gsht30.I2C1].humidity, 60.3, "read_all i2c1 humidity")
+assert_equal(all[gsht30.I2C1].temperature, 26.8, "read_all i2c1 temperature")
 assert_equal(#calls, 2, "read_all call count")
 
 print("gsht30_test.lua: PASS")

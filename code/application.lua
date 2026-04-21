@@ -5,6 +5,7 @@ local app_state = require("app_state")
 local app_collect = require("app_collect")
 local app_algorithm = require("app_algorithm")
 local app_alarm = require("app_alarm")
+local app_power = require("app_power")
 local app_sms = require("app_sms")
 local ggpio = require("ggpio")
 local gsht30 = require("gsht30")
@@ -114,11 +115,12 @@ local function start_collection_loop()
 
 	local function process_cycle(reason, force_report)
 		local cfg = app_config.get()
+		local profile = app_power.current_profile(cfg)
 		local raw_snapshot
 		local snapshot
 		local alarm
 
-		log_info("application", "开始一轮业务采集", reason)
+		log_info("application", "开始一轮业务采集", reason, profile.mode)
 		raw_snapshot = app_collect.collect_once()
 		snapshot, algo_runtime = app_algorithm.apply(raw_snapshot, algo_runtime)
 		alarm = app_alarm.evaluate(cfg, snapshot, alarm_runtime, now_ms())
@@ -132,12 +134,12 @@ local function start_collection_loop()
 			app_sms.send_alert(cfg.alarm_sms_phone, alarm.sms_text)
 		end
 
-		if force_report or last_report_ms == 0 or (now_ms() - last_report_ms) >= cfg.report_interval_ms then
+		if force_report or last_report_ms == 0 or (now_ms() - last_report_ms) >= profile.report_interval_ms then
 			gmqtt.publish_snapshot(snapshot)
 			last_report_ms = now_ms()
 		end
 
-		return snapshot, alarm
+		return snapshot, alarm, profile
 	end
 
 	if sys and type(sys.subscribe) == "function" then
@@ -187,9 +189,19 @@ local function start_collection_loop()
 	sys.taskInit(function()
 		while true do
 			local cfg = app_config.get()
+			local profile
 
-			process_cycle("periodic", false)
-			sys.wait(cfg.sample_interval_ms)
+			_, _, profile = process_cycle("periodic", false)
+			if app_power.should_sleep_after_cycle(cfg) then
+				if app_power.prepare_next_wakeup(cfg) then
+					app_power.enter_sleep()
+				end
+				if profile.prewake_ms > 0 then
+					sys.wait(profile.prewake_ms)
+				end
+			else
+				sys.wait(profile.sample_interval_ms)
+			end
 		end
 	end)
 end
