@@ -1,3 +1,5 @@
+-- 串口压差/气压传感器驱动。
+-- 当前协议是私有帧格式：先发命令，再读回带 CRC 的应答帧。
 local gbaro = {}
 
 gbaro.UART1 = 1
@@ -34,6 +36,7 @@ local function log_error(tag, ...)
 end
 
 local function crc8_maxim(data)
+	-- 设备协议使用 CRC-8/MAXIM，发包和收包校验都复用这一份实现。
 	local crc = 0
 
 	for i = 1, #data do
@@ -58,6 +61,7 @@ local function build_request(cmd)
 end
 
 local function read_frame(id, timeout_ms)
+	-- 按长度字段拼完整帧；一旦帧头错误就直接返回，避免误吞数据。
 	local frame = ""
 	local waited_ms = 0
 
@@ -94,6 +98,7 @@ local function read_frame(id, timeout_ms)
 end
 
 local function validate_frame(frame)
+	-- 收到完整帧后再次校验头、长度和 CRC，避免上层解析脏数据。
 	local frame_length
 	local expected_crc
 	local actual_crc
@@ -138,6 +143,7 @@ local function decode_u32_le(payload)
 end
 
 local function parse_temperature_frame(frame)
+	-- 温度帧返回有符号 16 位整数，单位是 0.1 摄氏度。
 	local ok
 	local data_type
 	local payload
@@ -164,6 +170,7 @@ local function parse_temperature_frame(frame)
 end
 
 local function parse_pressure_frame(frame)
+	-- 压力帧返回无符号 32 位整数，当前换算成 kPa。
 	local ok
 	local data_type
 	local payload
@@ -190,6 +197,7 @@ local function parse_pressure_frame(frame)
 end
 
 local function read_command(id, cmd, timeout_ms)
+	-- 每次发送新命令前先清空接收缓冲，避免把上一帧残留拼进来。
 	local request = build_request(cmd)
 	local written
 
@@ -227,6 +235,7 @@ local function read_pressure(id, timeout_ms)
 end
 
 function gbaro.init()
+	-- 两路串口都按统一参数初始化，任一路失败都视为模块初始化失败。
 	local uart_none = uart.None or uart.NONE
 
 	for i = 1, #managed_uarts do
@@ -242,6 +251,7 @@ function gbaro.init()
 end
 
 function gbaro.read(id, timeout_ms)
+	-- 单路读取需要先拿温度，再拿压力；任一步失败都会返回错误结构。
 	local read_timeout_ms = timeout_ms or DEFAULT_TIMEOUT_MS
 	local temp_ok
 	local temp_result
@@ -273,6 +283,7 @@ function gbaro.read(id, timeout_ms)
 end
 
 function gbaro.read_all(timeout_ms)
+	-- 对上层统一返回 { [uart_id] = { ok = ..., ... } } 结构，便于直接聚合。
 	local result = {}
 
 	for i = 1, #managed_uarts do

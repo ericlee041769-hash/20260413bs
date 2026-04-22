@@ -1,3 +1,5 @@
+-- 最新快照状态缓存。
+-- 这个模块只存一份“最后一次业务快照”，用于断电恢复和云端查询。
 local app_state = {}
 
 local LATEST_KEY = "app:latest"
@@ -18,6 +20,7 @@ local function clone_table(source)
 end
 
 function app_state.save_latest(snapshot)
+	-- 保存时写内存和 fskv，两边保持一致。
 	latest_snapshot = clone_table(snapshot)
 
 	if fskv and type(fskv.set) == "function" then
@@ -28,6 +31,7 @@ function app_state.save_latest(snapshot)
 end
 
 function app_state.get_latest()
+	-- 首次读取时如果内存没有，再尝试从 fskv 恢复。
 	if latest_snapshot ~= nil then
 		return clone_table(latest_snapshot)
 	end

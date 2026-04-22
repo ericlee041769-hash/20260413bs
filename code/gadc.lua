@@ -1,3 +1,5 @@
+-- ADC 采集封装。
+-- 包含电池电压读取和 WCS1500 电流采样读取。
 local gadc = {}
 
 gadc.ADC0 = 0
@@ -6,6 +8,7 @@ gadc.BATTERY_FULL_MV = 4200
 gadc.WCS1500_DIVIDER_RATIO = 2
 
 function gadc.battery_percent_from_mv(voltage_mv)
+	-- 当前采用简单线性映射，适合粗略电量展示，不适合精确 SOC 估算。
 	if type(voltage_mv) ~= "number" then
 		return nil
 	end
@@ -22,6 +25,7 @@ function gadc.battery_percent_from_mv(voltage_mv)
 end
 
 function gadc.read_battery()
+	-- 使用 LuatOS 提供的 CH_VBAT 读取板载电池电压。
 	local voltage_mv
 
 	if not adc.open(adc.CH_VBAT) then
@@ -45,6 +49,7 @@ function gadc.read_battery()
 end
 
 function gadc.read_wcs1500_adc0()
+	-- 电流传感器输出经过分压，因此这里返回原始毫伏值和换算后的传感器毫伏值。
 	local raw_value
 	local adc_mv
 

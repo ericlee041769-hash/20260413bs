@@ -1,3 +1,5 @@
+-- 短信发送封装。
+-- 负责屏蔽网络未就绪、号码/内容非法、底层句柄异常等细节。
 local app_sms = {}
 local sms_ready = false
 
@@ -14,6 +16,7 @@ local function log_error(...)
 end
 
 function app_sms.set_ready(ready)
+	-- 由 application 在 IP_READY 事件后调用，决定短信通道是否可发送。
 	sms_ready = ready and true or false
 	log_info("app_sms", sms_ready and "短信发送已就绪" or "短信发送未就绪")
 	return sms_ready
@@ -24,6 +27,7 @@ function app_sms.is_ready()
 end
 
 function app_sms.send_alert(phone, text)
+	-- 短信只在“新告警触发”时调用，不负责去重。
 	local action
 
 	if not sms_ready then

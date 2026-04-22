@@ -1,3 +1,5 @@
+-- 静态配置中心。
+-- 这里放的是出厂默认值、字段类型约束，以及云端允许改写的配置白名单。
 local config = {}
 
 config.MQTT = {
@@ -15,11 +17,14 @@ config.MQTT = {
 }
 
 config.RUNTIME_DEFAULTS = {
+	-- 供电模式切换后的采集周期。
 	usb_interval_ms = 10000,
 	battery_interval_ms = 60000,
+	-- AirLBS 默认参数，空值会导致定位模块不初始化。
 	airlbs_project_id = "lvU4QJ",
 	airlbs_project_key = "hbHtgCRY8OUvCqEC3NEyLZb5CS0w7oHV",
 	airlbs_timeout = 10000,
+	-- 告警阈值默认值。
 	temp_low = -40,
 	temp_high = 85,
 	temp_diff_high = 5,
@@ -32,6 +37,7 @@ config.RUNTIME_DEFAULTS = {
 }
 
 config.RUNTIME_FIELD_TYPES = {
+	-- app_config.update 会用这里校验云端和本地写入的值类型。
 	usb_interval_ms = "number",
 	battery_interval_ms = "number",
 	airlbs_project_id = "string",
@@ -49,6 +55,7 @@ config.RUNTIME_FIELD_TYPES = {
 }
 
 config.RUNTIME_MUTABLE_FIELDS = {
+	-- 运行时可变字段，意味着会进入 fskv 持久化并允许本地/云端更新。
 	usb_interval_ms = true,
 	battery_interval_ms = true,
 	airlbs_project_id = true,
@@ -66,6 +73,7 @@ config.RUNTIME_MUTABLE_FIELDS = {
 }
 
 config.GATEWAY_CONFIG_FIELDS = {
+	-- 云端平台允许读写的配置字段子集。
 	usb_interval_ms = true,
 	battery_interval_ms = true,
 	temp_low = true,

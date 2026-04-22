@@ -1,3 +1,5 @@
+-- 采集聚合层。
+-- 把各个外设模块的读数聚合成统一 snapshot，供算法、告警和上报模块复用。
 local app_collect = {}
 
 local gadc = rawget(_G, "gadc") or require("gadc")
@@ -24,6 +26,7 @@ local function safe_json_encode(value)
 end
 
 local function safe_call(fn, ...)
+	-- 单个外设异常不应拖垮整轮采集，因此统一通过 pcall 包一层。
 	if type(fn) ~= "function" then
 		return false
 	end
@@ -59,6 +62,7 @@ local function read_door_state()
 end
 
 local function read_location()
+	-- 定位失败时统一降级为 {0, 0}，避免后续上报逻辑处理 nil。
 	if type(glbs) == "table" and type(glbs.is_ready) == "function" and not glbs.is_ready() then
 		log_info("app_collect", "AirLBS未初始化，使用默认坐标")
 		return { 0, 0 }
@@ -93,6 +97,7 @@ local function read_pressure()
 end
 
 function app_collect.collect_once()
+	-- snapshot 是应用内共享的数据结构，后续所有业务逻辑都围绕它展开。
 	local now_seconds = os.time() or 0
 	local battery_mv, battery_percent = read_battery()
 	local current_raw, current_mv, current_sensor_mv = read_current()

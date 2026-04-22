@@ -1,3 +1,5 @@
+-- SHT30 温湿度采集封装。
+-- 板上挂了两路 I2C，总是按固定总线列表读取并返回统一结果结构。
 local gsht30 = {}
 
 gsht30.I2C0 = 0
@@ -23,6 +25,7 @@ local function is_valid_bus(id)
 end
 
 function gsht30.init(speed)
+	-- 启动时一次性初始化两路 I2C，总线缺失直接报错返回。
 	local bus_speed = speed or i2c.FAST
 
 	for i = 1, #managed_buses do
@@ -49,6 +52,7 @@ function gsht30.init(speed)
 end
 
 function gsht30.read(id, addr)
+	-- 默认先用 0x44 读取；未显式指定地址时，失败后再尝试 0x45。
 	local device_addr = addr or gsht30.DEFAULT_ADDR
 	local ok
 	local humidity
@@ -71,6 +75,7 @@ function gsht30.read(id, addr)
 end
 
 function gsht30.read_all(addr)
+	-- 结果使用总线号作为索引，便于上层按固定通道解释。
 	local result = {}
 	local ids = managed_buses
 

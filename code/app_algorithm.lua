@@ -1,3 +1,5 @@
+-- 轻量算法处理层。
+-- 当前主要做两件事：温湿度的中值+EMA 平滑，以及电流值的滑动平均。
 local app_algorithm = {}
 
 local WINDOW_SIZE = 3
@@ -23,6 +25,7 @@ local function ensure_table(value)
 end
 
 local function append_window(window, value)
+	-- 维护固定长度窗口，避免运行时状态无限增长。
 	local next_window = {}
 	local start_index = 1
 
@@ -82,6 +85,7 @@ local function average(window)
 end
 
 local function process_temp_hum_channel(entry, runtime_entry)
+	-- 每路温湿度都维护独立窗口和滤波状态，避免通道之间互相污染。
 	local next_entry = clone_table(entry)
 	local next_runtime_entry = ensure_table(clone_table(runtime_entry))
 	local temp_med
@@ -109,6 +113,7 @@ local function process_temp_hum_channel(entry, runtime_entry)
 end
 
 function app_algorithm.apply(snapshot, runtime)
+	-- apply 返回“处理后的快照 + 下一轮可复用的运行时状态”。
 	local next_snapshot = clone_table(snapshot)
 	local next_runtime = ensure_table(clone_table(runtime))
 	local current_runtime

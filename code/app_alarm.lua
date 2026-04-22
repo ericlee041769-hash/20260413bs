@@ -1,3 +1,5 @@
+-- 告警规则层。
+-- 负责根据采集快照和运行时状态计算当前告警、边沿告警，以及短信内容。
 local app_alarm = {}
 
 local ALARM_ORDER = {
@@ -50,6 +52,7 @@ local function is_ok(entry)
 end
 
 local function append_alarm_segments(segments, values, alarm_map)
+	-- 按固定顺序组织文案，避免短信内容每次顺序不一致。
 	for i = 1, #ALARM_ORDER do
 		local key = ALARM_ORDER[i]
 		if alarm_map[key] then
@@ -111,6 +114,10 @@ local function join_alarm_keys(active_map)
 end
 
 function app_alarm.evaluate(cfg, snapshot, runtime, now_ms)
+	-- evaluate 是纯业务判断入口：
+	-- 1. 计算当前 active_map
+	-- 2. 和上一轮比较，得出 new_alarm_keys
+	-- 3. 生成 err_text / sms_text / 下一轮 runtime
 	local active_map = {}
 	local previous_active = type(runtime) == "table" and runtime.active_map or {}
 	local door_open_since_ms = type(runtime) == "table" and runtime.door_open_since_ms or nil

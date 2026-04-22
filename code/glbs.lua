@@ -1,3 +1,5 @@
+-- AirLBS 定位适配层。
+-- 负责初始化请求参数、控制请求频率、缓存上一次有效定位，并兼容多种返回结构。
 local glbs = {}
 
 local DEFAULT_TIMEOUT = 10000
@@ -47,6 +49,7 @@ local function copy_location(source)
 end
 
 local function reset_runtime_state()
+	-- 重新初始化后必须清掉上一次定位缓存，避免旧配置污染新定位结果。
 	last_request_ms = nil
 	last_location = { 0, 0 }
 	has_last_location = false
@@ -96,6 +99,7 @@ local function parse_location_pair(value)
 end
 
 local function extract_airlbs_lat_lng(data)
+	-- AirLBS 返回结构不稳定，这里尽量兼容不同字段名和嵌套层级。
 	local lat
 	local lng
 	local location_fields
@@ -161,6 +165,7 @@ local function extract_airlbs_lat_lng(data)
 end
 
 local function wait_for_default_network(timeout_ms)
+	-- 定位请求前等待默认网络 ready，避免请求直接在底层失败。
 	local elapsed = 0
 
 	if type(socket) ~= "table" or type(socket.adapter) ~= "function" or type(socket.dft) ~= "function" then
@@ -195,10 +200,12 @@ local function build_request_param()
 end
 
 local function request_due(current_ms)
+	-- 通过最小请求间隔限制定位频率，避免过度请求。
 	return last_request_ms == nil or (current_ms - last_request_ms) >= REQUEST_INTERVAL_MS
 end
 
 local function request_location(request_time_ms)
+	-- 真正执行一次 AirLBS 请求，并把成功结果写入 last_location。
 	local request_param
 	local timeout_ms
 	local ready
@@ -259,6 +266,7 @@ local function request_location(request_time_ms)
 end
 
 function glbs.init(cfg)
+	-- project_id 为空时直接视为未初始化，业务层会自动回退到默认坐标。
 	if type(cfg) ~= "table" or type(cfg.project_id) ~= "string" or cfg.project_id == "" then
 		log_error("glbs.init", "project_id is required")
 		is_inited = false
@@ -291,6 +299,7 @@ function glbs.is_ready()
 end
 
 function glbs.get_location()
+	-- 获取定位时优先走限频缓存；只有超过间隔才真的发起新请求。
 	local current_ms
 
 	if not is_inited then

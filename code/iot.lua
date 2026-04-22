@@ -1,3 +1,5 @@
+-- MQTT 底层封装。
+-- 这一层尽量只关心连接、订阅、发布和平台回包格式，不直接掺杂业务含义。
 local iot = {}
 
 local mqtt_client = nil
@@ -19,6 +21,7 @@ local function gen_message_id()
 end
 
 local function subscribe_topics(client)
+	-- 只订阅业务需要的 get/set 主题，减少回调分支和噪声。
 	local topics = {}
 	if mqtt_cfg and mqtt_cfg.getTopic then
 		topics[#topics + 1] = mqtt_cfg.getTopic
@@ -39,6 +42,7 @@ local function subscribe_topics(client)
 end
 
 local function mqtt_cb(client, event, data, payload, metas)
+	-- 回调里只做“记录状态 + 转发系统事件”，尽量不要塞业务逻辑。
 	log.info("iot.mqtt_cb", event, data, payload)
 
 	if event == "conack" then
@@ -64,6 +68,7 @@ local function mqtt_cb(client, event, data, payload, metas)
 end
 
 function iot.init(cfg)
+	-- init 只负责创建和鉴权客户端；真正发起连接由 iot.connect 完成。
 	if not cfg then
 		log.error("iot.init", "cfg is nil")
 		return false
@@ -99,6 +104,7 @@ function iot.init(cfg)
 end
 
 function iot.connect()
+	-- 建连前必须先经过 init，否则说明配置或生命周期管理有问题。
 	if not is_inited or not mqtt_client then
 		log.error("iot.connect", "mqtt not inited")
 		return false
@@ -136,6 +142,7 @@ function iot.ready()
 end
 
 function iot.publish(topic, data, qos, retain)
+	-- 发布成功后把消息 ID 记到 pending_messages，便于 sent 回调打印上下文。
 	local msg_id
 
 	if not mqtt_client or not mqtt_client:ready() then
@@ -219,6 +226,7 @@ function iot.publish_dp(temp, fanSpeed, door, humidity, err, time)
 end
 
 function iot.publish_get_reply(messageId, success, dp, code, message, deviceId)
+	-- 平台查询回复统一带时间戳和 messageId，失败时回 code/message。
 	if not mqtt_cfg or not mqtt_cfg.getReplyTopic then
 		log.error("iot.publish_get_reply", "getReplyTopic not configured")
 		return false
@@ -248,6 +256,7 @@ function iot.publish_get_reply(messageId, success, dp, code, message, deviceId)
 end
 
 function iot.publish_set_reply(messageId, success, dp, code, message)
+	-- 配置写回复和查询回复结构类似，但不要求 deviceId 透传。
 	if not mqtt_cfg or not mqtt_cfg.setReplyTopic then
 		log.error("iot.publish_set_reply", "setReplyTopic not configured")
 		return false

@@ -1,3 +1,5 @@
+-- 业务 MQTT 适配层。
+-- 负责在“应用内部 snapshot/config”和“平台 DP 消息格式”之间做双向转换。
 local gmqtt = {}
 
 local sys = require("sys")
@@ -49,6 +51,7 @@ local function decode_json_table(payload)
 end
 
 local function to_message_id(msg)
+	-- 平台消息可能使用 messageId 或 id，两种都兼容。
 	if type(msg) ~= "table" then
 		return ""
 	end
@@ -164,6 +167,7 @@ local function to_gateway_err(snapshot)
 end
 
 local function build_runtime_config_payload(cfg)
+	-- 配置上报和查询回复只暴露平台允许可见的字段。
 	local reply = {}
 	local allowed_fields = gateway_config_fields()
 
@@ -189,6 +193,7 @@ local function merge_tables(target, overlay)
 end
 
 local function build_gateway_dp(cfg, snapshot)
+	-- 这里定义了内部快照字段到平台 DP 字段的唯一映射关系。
 	local temp1
 	local humidity1
 	local temp2
@@ -228,6 +233,7 @@ local function build_gateway_dp(cfg, snapshot)
 end
 
 local function build_get_reply_dp(keys)
+	-- getTopic 只返回请求方点名的字段，避免把整份 DP 都回出去。
 	local reply = {}
 	local gateway_dp = build_gateway_dp(current_config(), current_latest())
 
@@ -246,6 +252,7 @@ local function build_get_reply_dp(keys)
 end
 
 local function apply_set_dp(dp)
+	-- setTopic 下发的配置先做白名单过滤，再交给 app_config 做类型校验和持久化。
 	local changes = {}
 	local applied
 	local reply = {}
@@ -290,6 +297,7 @@ local function apply_set_dp(dp)
 end
 
 local function register_mqtt_receive_handler()
+	-- 收到云端消息后，只在这里做协议分发；具体写配置逻辑仍下沉到 app_config。
 	sys.subscribe(iot.event_recv_name(), function(topic, payload, metas)
 		log.info("gmqtt", "收到云端消息", topic, payload, safe_json_encode(metas))
 
@@ -326,6 +334,7 @@ local function register_mqtt_state_handlers()
 end
 
 local function start_mqtt_connection_task()
+	-- MQTT 建连依赖 IP_READY，因此放到后台任务里等待网络上线。
 	sys.taskInit(function()
 		local ip_ready = sys.waitUntil("IP_READY", 30000)
 		if not ip_ready then
@@ -345,6 +354,7 @@ local function start_mqtt_connection_task()
 end
 
 function gmqtt.publish_snapshot(snapshot)
+	-- 上报前先检查 mqtt_ready，避免未建连时无意义调用底层 publish。
 	if type(snapshot) ~= "table" then
 		if log and log.error then
 			log.error("gmqtt", "采集快照必须为table")
@@ -370,6 +380,7 @@ function gmqtt.publish_snapshot(snapshot)
 end
 
 function gmqtt.start(services)
+	-- gmqtt 不直接 require 业务模块，而是通过 services 注入，方便单元测试替身。
 	if type(services) ~= "table" then
 		if log and log.error then
 			log.error("gmqtt", "services must be table")

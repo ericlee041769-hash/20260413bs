@@ -1,3 +1,5 @@
+-- 应用主编排层。
+-- 负责初始化平台能力、启动周期采集、处理门磁即时告警，并协调短信/MQTT/低功耗逻辑。
 local application = {}
 
 local app_config = require("app_config")
@@ -29,6 +31,7 @@ local function log_error(...)
 end
 
 local function safe_json_encode(value)
+	-- 日志不应该因为 JSON 编码失败而影响主流程，因此这里做保护性编码。
 	if json and type(json.encode) == "function" then
 		local ok, encoded = pcall(json.encode, value)
 		if ok then
@@ -44,6 +47,7 @@ local function now_ms()
 end
 
 local function init_storage()
+	-- fskv 既用于运行配置持久化，也用于保存最新快照。
 	if not fskv or type(fskv.init) ~= "function" then
 		log_info("application", "fskv不可用，跳过存储初始化")
 		return true
@@ -59,6 +63,7 @@ local function init_storage()
 end
 
 local function register_runtime_handlers()
+	-- 短信模块依赖网络就绪；启动时先禁用，等 IP_READY 后再放开。
 	if type(app_sms.set_ready) == "function" then
 		app_sms.set_ready(false)
 	end
@@ -74,6 +79,7 @@ local function register_runtime_handlers()
 end
 
 local function init_modules(cfg)
+	-- 这里按“板级 IO -> 传感器 -> 定位”的顺序初始化，便于快速定位失败层级。
 	local ok = ggpio.init()
 	if not ok then
 		return false
@@ -121,6 +127,7 @@ local function start_collection_loop()
 	local door_watch_active = false
 
 	local function process_cycle(reason)
+		-- 一轮业务循环的统一入口：采集 -> 算法处理 -> 告警判断 -> 保存 -> 短信/上报。
 		local cfg = app_config.get()
 		local profile = app_power.current_profile(cfg)
 		local raw_snapshot
@@ -165,6 +172,7 @@ local function start_collection_loop()
 				local cfg = app_config.get()
 				local confirmed_open_at
 
+				-- 先消抖，再进入“开门超时观察”窗口，避免门磁抖动造成误报。
 				sys.wait(DOOR_DEBOUNCE_MS)
 				if not ggpio.get_door_state() then
 					log_info("application", "门磁消抖后状态为关闭，忽略本次事件")
@@ -203,6 +211,7 @@ local function start_collection_loop()
 
 			_, _, profile = process_cycle("periodic")
 			if app_power.should_sleep_after_cycle(cfg) then
+				-- 电池模式下：先设置下一次唤醒，再进入低功耗，然后等待预唤醒窗口。
 				if app_power.prepare_next_wakeup(cfg) then
 					app_power.enter_sleep()
 				end
@@ -217,6 +226,7 @@ local function start_collection_loop()
 end
 
 function application.start()
+	-- application.start 是业务入口，main.lua 只负责调用它一次。
 	log_info("application", "应用启动开始")
 	if not init_storage() then
 		return false

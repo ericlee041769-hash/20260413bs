@@ -1,3 +1,5 @@
+-- 运行配置管理。
+-- 负责把默认配置、持久化配置和云端下发配置合并成一份当前有效配置。
 local app_config = {}
 local config = require("config")
 
@@ -35,6 +37,7 @@ local function clone_table(source)
 end
 
 local function load_persisted()
+	-- fskv 不可用时允许系统以默认配置继续运行。
 	if not fskv or type(fskv.get) ~= "function" then
 		return nil
 	end
@@ -72,6 +75,7 @@ local function max_number(...)
 end
 
 local function merge_known_fields(base, overlay)
+	-- 只接受默认配置中已经声明过的键，避免脏数据进入运行时配置。
 	local merged = clone_table(base)
 
 	if type(overlay) ~= "table" then
@@ -88,6 +92,7 @@ local function merge_known_fields(base, overlay)
 end
 
 local function migrate_legacy_intervals(persisted)
+	-- 兼容历史 sample/report 字段，统一迁移成现在的 usb_interval_ms / battery_interval_ms。
 	local migrated = clone_table(persisted)
 	local usb_interval
 	local battery_interval
@@ -140,6 +145,7 @@ local function maybe_warn_airlbs_override(persisted, effective)
 end
 
 function app_config.load()
+	-- 启动时读取一次，并将迁移后的结果回写到 fskv，保持后续结构一致。
 	local persisted = load_persisted()
 	local migrated = migrate_legacy_intervals(persisted)
 
@@ -159,6 +165,7 @@ function app_config.load()
 end
 
 function app_config.get()
+	-- 对外返回副本，避免调用方误改共享状态。
 	if current_config == nil then
 		return app_config.load()
 	end
@@ -167,6 +174,7 @@ function app_config.get()
 end
 
 function app_config.update(changes)
+	-- 运行时只允许更新白名单字段，且必须满足声明的类型。
 	local next_config = app_config.get()
 	local applied = {}
 
