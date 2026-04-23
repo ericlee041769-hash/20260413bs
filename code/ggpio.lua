@@ -17,6 +17,11 @@ local managed_pins = {
 	io_ctrl.GPIO_28
 }
 
+local vbus_source_pins = {
+	io_ctrl.GPIO_5V_EN,
+	io_ctrl.GPIO_28
+}
+
 local managed_pin_set = {
 	[io_ctrl.GPIO_ADC_EN] = true,
 	[io_ctrl.GPIO_3V3_EN] = true,
@@ -30,6 +35,7 @@ local door_input_reader = nil
 local vbus_input_reader = nil
 local last_vbus_level = nil
 local DOOR_EDGE_EVENT = "APP_DOOR_EDGE"
+local VBUS_SAMPLE_SETTLE_MS = 20
 
 local function normalize_level(level)
 	if level == false or level == 0 then
@@ -70,6 +76,44 @@ end
 
 local function is_valid_pin(pin)
 	return managed_pin_set[pin] == true
+end
+
+local function set_pin_level_silently(pin, level)
+	local normalized_level = normalize_level(level)
+
+	gpio.set(pin, normalized_level)
+	pin_levels[pin] = normalized_level
+end
+
+local function disable_vbus_sources_for_sampling()
+	local restore_levels = {}
+
+	for i = 1, #vbus_source_pins do
+		local pin = vbus_source_pins[i]
+		local level = pin_levels[pin]
+
+		restore_levels[i] = level
+		if level ~= nil and level ~= 0 then
+			set_pin_level_silently(pin, 0)
+		end
+	end
+
+	if sys and type(sys.wait) == "function" then
+		sys.wait(VBUS_SAMPLE_SETTLE_MS)
+	end
+
+	return restore_levels
+end
+
+local function restore_vbus_sources_after_sampling(restore_levels)
+	for i = 1, #vbus_source_pins do
+		local pin = vbus_source_pins[i]
+		local level = restore_levels[i]
+
+		if level ~= nil and pin_levels[pin] ~= level then
+			set_pin_level_silently(pin, level)
+		end
+	end
 end
 
 local function wakeup0_callback(level, pin)
@@ -166,7 +210,10 @@ end
 
 function io_ctrl.get_usb_power_state()
 	-- 额外返回原始 level，方便上层在日志里直接打印 GPIO21 电平。
+	local restore_levels = disable_vbus_sources_for_sampling()
 	local level = read_vbus_level()
+
+	restore_vbus_sources_after_sampling(restore_levels)
 
 	if level == nil then
 		return nil, nil
